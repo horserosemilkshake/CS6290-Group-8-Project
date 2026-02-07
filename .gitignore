@@ -1,0 +1,10 @@
+artifacts/
+.vscode/
+docs_wren/
+__pycache__/
+*.pyc
+env/
+env_*/
+.venv/
+.venv_*/
+.pytest_cache/

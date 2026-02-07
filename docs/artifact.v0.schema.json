@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cs6290projectgroup8.org/schemas/artifact.json",
+  "title": "Artifact (v0)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "run_id",
+    "testcase_id",
+    "suite",
+    "defense_profile",
+    "component",
+    "type",
+    "payload",
+    "payload_redacted",
+    "contains_wallet_addresses",
+    "contains_tx_hash",
+    "retention_days",
+    "visibility",
+    "created_at",
+    "timing"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "artifact.v0",
+      "description": "Schema version for forward/backward compatibility."
+    },
+
+    "artifact_id": {
+      "type": "string",
+      "description": "Unique id for this artifact (uuid recommended)."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique id for a single harness run / testcase execution."
+    },
+
+    "testcase_id": {
+      "type": "string",
+      "description": "Identifier of the testcase that produced this artifact."
+    },
+    "suite": {
+      "type": "string",
+      "description": "Test suite name (e.g., smoke, full)."
+    },
+
+    "defense_profile": {
+      "type": "string",
+      "enum": ["bare", "l1", "l1l2"],
+      "description": "Defense configuration label for experiment comparisons."
+    },
+
+    "component": {
+      "type": "string",
+      "enum": [
+        "harness",
+        "agent_api",
+        "planner",
+        "policy_engine",
+        "tool_router",
+        "quote_tool",
+        "tx_builder",
+        "wallet_adapter"
+      ],
+      "description": "Which component emitted the artifact."
+    },
+
+    "type": {
+      "type": "string",
+      "enum": [
+        "run_summary",
+        "policy_decision",
+        "txplan",
+        "quote_snapshot",
+        "message_trace",
+        "error"
+      ],
+      "description": "Artifact category used by metrics/scripts."
+    },
+
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "data"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Repeat of 'type' for easier streaming/grep."
+        },
+        "data": {
+          "type": "object",
+          "description": "Artifact-specific content (must be redacted if sensitive)."
+        },
+        "redactions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "default": [],
+          "description": "List of redaction operations applied (e.g., address_hashing, calldata_removed)."
+        }
+      }
+    },
+
+    "payload_redacted": {
+      "type": "boolean",
+      "description": "True if payload has been redacted/sanitized."
+    },
+    "contains_wallet_addresses": {
+      "type": "boolean",
+      "description": "True if any wallet address (even hashed/aliased) appears in payload/data."
+    },
+    "contains_tx_hash": {
+      "type": "boolean",
+      "description": "True if any transaction hash appears in payload/data. Should normally be false."
+    },
+
+    "retention_days": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Retention period for this artifact."
+    },
+
+    "visibility": {
+      "type": "string",
+      "enum": ["private"],
+      "description": "Artifacts are private by default."
+    },
+
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Artifact creation time (ISO 8601)."
+    },
+
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t_start_ms", "t_end_ms"],
+      "properties": {
+        "t_start_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Run start time (ms since epoch)."
+        },
+        "t_end_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Run end time (ms since epoch)."
+        },
+        "t_refusal_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time when the system refused/blocked (ms since epoch), if applicable."
+        }
+      },
+      "description": "Timing fields used for TR (time-to-refusal) and runtime metrics."
+    }
+  }
+}
+
