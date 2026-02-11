@@ -1,0 +1,182 @@
+{
+  "module_interaction_design": {
+    "title": "AI Agent Module Interaction Design",
+    "description": "This section defines the request and response data formats between modules to facilitate collaborative development.",
+    "diagram_reference": "media/image2.png",
+    "interfaces": [
+      {
+        "name": "Owner → Agent API",
+        "endpoint": "POST /v0/agent/plan",
+        "description": "Request body: PlanRequest",
+        "request_example": {
+          "request_id": "req_123456",
+          "user_message": "Swap 1 ETH to USDT",
+          "session_id": "sess_owner_001",
+          "parameters": {
+            "preferred_dex": "1inch"
+          }
+        }
+      },
+      {
+        "name": "Agent API → Owner (Successful Response)",
+        "description": "Response when Policy Engine returns ALLOW",
+        "response_example": {
+          "request_id": "req_123456",
+          "status": "NEEDS_OWNER_SIGNATURE",
+          "tx_plan": {
+            "plan_id": "plan_789",
+            "status": "NEEDS_OWNER_SIGNATURE",
+            "summary": "Swap 1.0 ETH for ≈3200 USDT via 1inch",
+            "quote_snapshot": {},
+            "unsigned_transaction": {
+              "chain_id": 1,
+              "to": "0x1111... (allowlisted router)",
+              "data": "0x... (calldata_preview, can be partially masked)",
+              "value": "0x...",
+              "gas": "0x...",
+              "nonce": null
+            },
+            "policy_log": {
+              "checked_at": "2023-10-27T10:00:00Z",
+              "decision": "ALLOW",
+              "violations": []
+            }
+          }
+        }
+      },
+      {
+        "name": "Agent API → Owner (Failure Response)",
+        "description": "Response when BLOCKED by policy or internal error",
+        "response_example": {
+          "request_id": "req_123456",
+          "status": "BLOCKED_BY_POLICY",
+          "error": {
+            "code": "POLICY_VIOLATION_SLIPPAGE",
+            "message": "Request blocked. Quote slippage (15%) exceeds maximum allowed (10%).",
+            "details": {
+              "rule_violated": "max_slippage_bps",
+              "threshold": 1000,
+              "actual": 1500
+            }
+          },
+          "tx_plan": null
+        }
+      },
+      {
+        "name": "Agent API → Quote Tool",
+        "endpoint": "GET /v0/tools/quotes",
+        "description": "Request: QuoteRequest",
+        "request_example": {
+          "request_id": "req_123456",
+          "intent": {
+            "chain_id": 1,
+            "sell_token": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "buy_token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "sell_amount": "1000000000000000000"
+          },
+          "config": {
+            "preferred_aggregators": ["1inch", "0x"],
+            "deadline_seconds": 30
+          }
+        }
+      },
+      {
+        "name": "Quote Tool → Agent API",
+        "description": "Response: QuoteResponse",
+        "response_example": {
+          "request_id": "req_123456",
+          "status": "SUCCESS",
+          "quotes": [
+            {
+              "aggregator": "1inch",
+              "router_address": "0x111111111117dc0aa78b770fa6a738034120c302",
+              "buy_amount": "3200000000",
+              "price_impact_bps": 5,
+              "slippage_bps": 50,
+              "fee_bps": 10,
+              "gas_estimate": "200000",
+              "gas_price_wei": "50000000000",
+              "transaction_calldata_preview": "0x...",
+              "valid_to": 1698393600
+            }
+          ],
+          "meta": {
+            "fetched_at": "2023-10-27T09:59:55Z"
+          }
+        }
+      },
+      {
+        "name": "Agent API → Policy Engine",
+        "endpoint": "POST /v0/policy/evaluate",
+        "description": "Request: PolicyRequest",
+        "request_example": {
+          "request_id": "req_123456",
+          "context": {
+            "session_id": "sess_owner_001",
+            "user_message": "Swap 1 ETH to USDT"
+          },
+          "swap_intent": {},
+          "proposed_plan": {
+            "selected_quote_index": 0,
+            "additional_note": "User wants best price"
+          },
+          "quote_snapshot": {},
+          "policy_overrides": []
+        }
+      },
+      {
+        "name": "Policy Engine → Agent API",
+        "description": "Response: PolicyResponse",
+        "response_example": {
+          "request_id": "req_123456",
+          "decision": "ALLOW",
+          "checked_at": "2023-10-27T10:00:00Z",
+          "violations": [],
+          "enforced_plan": {
+            "allowlisted_router": "0x1111...",
+            "max_slippage_bps": 1000,
+            "final_calldata": "0x..."
+          },
+          "signature": "0x..."
+        }
+      },
+      {
+        "name": "Agent API → Wallet Bridge",
+        "description": "ForwardRequest after user confirmation",
+        "request_example": {
+          "request_id": "req_123456",
+          "plan_id": "plan_789",
+          "user_action": "CONFIRMED",
+          "unsigned_transaction": {},
+          "display_info": {
+            "network": "Ethereum Mainnet",
+            "action": "Swap 1 ETH for USDT",
+            "estimated_total": "≈ 3200 USDT"
+          }
+        }
+      },
+      {
+        "name": "Wallet Bridge → Agent API",
+        "description": "Response from wallet bridge",
+        "response_example": {
+          "request_id": "req_123456",
+          "status": "RECEIVED",
+          "wallet_intent_id": "wallet_tx_abc",
+          "message": "Transaction ready for signing in your wallet."
+        }
+      }
+    ],
+    "notes": {
+      "traceability": "All requests and responses are linked using request_id and plan_id to meet audit and measurement requirements.",
+      "security": [
+        "All addresses and amounts are represented as strings to avoid precision loss.",
+        "Transaction data is always unsigned_transaction and does not contain nonce or chainId (these can be added by the wallet)."
+      ],
+      "privacy": [
+        "For logging or frontend display, addresses and amounts should be masked (e.g., hide characters using ...).",
+        "policy_log and quote_snapshot must remove sensitive fields when stored."
+      ],
+      "determinism": "PolicyResponse is the single authoritative source – all decisions are final."
+    }
+  }
+}
