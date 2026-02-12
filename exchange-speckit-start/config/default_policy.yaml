@@ -1,0 +1,102 @@
+# Default Policy Configuration for Swap Planning Agent
+# This YAML file defines L2 validation gates and policy thresholds
+# Changes require security team review and Git commit
+
+version: "1.0.0"
+created_at: "2026-02-13"
+modified_by: "Security Team"
+
+# Global settings
+global:
+  enforcement_level: "REJECT_NO_OVERRIDE"  # Never override this setting
+  allow_runtime_modifications: false       # Must change code to update policies
+
+# Quote Validation Gates
+validation_gates:
+  
+  max_slippage_check:
+    gate_name: "Maximum Slippage Tolerance"
+    description: "Reject quotes with slippage > 10%"
+    parameter: "slippage_tolerance"
+    threshold: 10.0
+    operator: "<="  # Must be <=
+    rejection_code: "QUOTE_EXCESSIVE_SLIPPAGE"
+    enabled: true
+    
+  min_confidence_check:
+    gate_name: "Minimum Market Confidence"
+    description: "Reject quotes with confidence < 0.8"
+    parameter: "market_confidence"
+    threshold: 0.8
+    operator: ">="  # Must be >=
+    rejection_code: "QUOTE_LOW_CONFIDENCE"
+    enabled: true
+    
+  field_presence_check:
+    gate_name: "Required Fields Validation"
+    description: "Ensure all required fields present and non-empty"
+    parameters: ["quote_id", "from_token", "to_token", "from_amount", "to_amount"]
+    rejection_code: "QUOTE_MISSING_FIELDS"
+    enabled: true
+    
+  token_whitelist_check:
+    gate_name: "Token Whitelist Validation"
+    description: "Reject quotes with tokens not on approved whitelist"
+    parameter: "from_token,to_token"
+    rejection_code: "QUOTE_INVALID_TOKENS"
+    enabled: true
+    
+  quote_expiry_check:
+    gate_name: "Quote Expiry Validation"
+    description: "Reject expired quotes"
+    parameter: "quote_expiry"
+    rejection_code: "QUOTE_EXPIRED"
+    enabled: true
+
+# Token Whitelist
+# NOTE: This is a sample. Update with actual token addresses from your deployment
+token_whitelist:
+  - name: "Wrapped Ethereum"
+    symbol: "WETH"
+    address: "0xfFf9976782d46CC05630D92EE39253E4423ACFB9"  # Sepolia testnet
+    chain: "sepolia"
+    decimals: 18
+    
+  - name: "USD Coin"
+    symbol: "USDC"
+    address: "0xd5c6C8169A95bA8Af4D1ee8B47EaF3e2Ce68A4b2"  # Sepolia testnet
+    chain: "sepolia"
+    decimals: 6
+
+# Router Whitelist (DEX/Aggregator addresses allowed for routing)
+router_whitelist:
+  - name: "Uniswap V3 Router"
+    address: "0x68b3465833fb72B5A828cCEEB955DD0a0FA3E7C6"
+    enabled: true
+    
+  - name: "1Inch Routing"
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    enabled: true
+
+# Privacy Routing Settings
+privacy:
+  required_min_intermediaries: 3
+  require_custody_proofs: true
+  approved_routing_strategies:
+    - "direct_swap"
+    - "liquidity_pool"
+    - "dex_aggregator"
+    - "bridge_assisted"
+
+# Performance Settings
+performance:
+  max_validation_time_ms: 100
+  max_plan_generation_time_ms: 3000
+  max_quote_lookup_time_ms: 2000
+
+# Audit Settings
+audit:
+  log_all_quote_validations: true
+  log_all_threats: true
+  log_determinism_checks: false  # Set to true only for testing
+  retain_logs_days: 90

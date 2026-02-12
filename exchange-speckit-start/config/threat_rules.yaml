@@ -1,0 +1,157 @@
+# Threat Rules Catalog for Swap Planning Agent
+# Defines adversarial threat patterns and their detection rules
+# Changes require security expert review and Git commit
+
+version: "1.0.0"
+created_at: "2026-02-13"
+security_owner: "CISO Team"
+
+# Threat Catalog with Detection Rules
+threats:
+  
+  THREAT_TOKEN_SPOOFING:
+    threat_type: "token_manipulation"
+    severity: "CRITICAL"
+    description: "Detect token address spoofing (address similar to legitimate token)"
+    detection_methods:
+      - type: "whitelist_check"
+        rule: "from_token or to_token not in approved_token_whitelist"
+        
+      - type: "similarity_match"
+        rule: "token address differs by 1-2 characters from whitelist"
+        threshold_chars: 2
+        
+      - type: "checksum_validation"
+        rule: "token address fails Ethereum checksum validation"
+    
+    rejection_code: "THREAT_TOKEN_SPOOFING"
+    rejection_reason: "Token address mismatch detected against whitelist"
+    alert_level: "CRITICAL"
+    recommended_action: "block_request"
+    
+    # Test patterns (for contract tests)
+    test_patterns:
+      - legitimate: "0xfFf9976782d46CC05630D92EE39253E4423ACFB9"
+        spoofed: "0xfFf9976782d46CC05630D92EE39253E4423ACFBB"  # Last char different
+        description: "1-character substitution"
+
+  THREAT_DECIMAL_EXPLOIT:
+    threat_type: "decimal_precision_attack"
+    severity: "HIGH"
+    description: "Detect decimal precision exploits (rounding errors, underflow)"
+    detection_methods:
+      - type: "decimal_range_check"
+        rule: "from_amount < 0.00000001 or > max_safe_int"
+        min_amount: 0.00000001
+        
+      - type: "token_decimals_validation"
+        rule: "from_amount precision exceeds token decimals"
+        
+      - type: "rounding_simulation"
+        rule: "Simulate rounding at each step; detect if final < expected"
+    
+    rejection_code: "THREAT_DECIMAL_EXPLOIT"
+    rejection_reason: "Amount precision outside safe range"
+    alert_level: "HIGH"
+    recommended_action: "block_request"
+    
+    test_patterns:
+      - amount: "0.000000001"
+        description: "Extreme precision, likely rounding error"
+      - amount: "999999999999999999999"
+        description: "Numeric overflow risk"
+
+  THREAT_UNUSUAL_PARAMETERS:
+    threat_type: "attack_pattern"
+    severity: "HIGH"
+    description: "Detect unusual parameters that suggest attack (e.g., 100% slippage)"
+    detection_methods:
+      - type: "slippage_extreme"
+        rule: "slippage_tolerance == 100 or > 99"
+        description: "100% slippage guarantees failure"
+        
+      - type: "confidence_zero"
+        rule: "market_confidence < 0.1"
+        description: "Near-zero confidence is suspicious"
+        
+      - type: "fee_percentage_extreme"
+        rule: "execution_fees > swap_value * 0.5"
+        description: "Fee >50% of value is unusual"
+    
+    rejection_code: "THREAT_UNUSUAL_PARAMETERS"
+    rejection_reason: "Quote parameters match known attack pattern"
+    alert_level: "HIGH"
+    recommended_action: "block_and_alert"
+    
+    test_patterns:
+      - parameter: "slippage_tolerance"
+        value: "100"
+        description: "Maximum slippage - likely attack"
+      - parameter: "market_confidence"
+        value: "0.05"
+        description: "Near-zero confidence"
+
+  THREAT_REPLAY_ATTEMPT:
+    threat_type: "replay_attack"
+    severity: "MEDIUM"
+    description: "Detect replay attacks (duplicate requests within time window)"
+    detection_methods:
+      - type: "hash_cache"
+        rule: "Hash quote; if seen in recent cache (100ms window), reject"
+        cache_window_ms: 100
+        
+      - type: "timestamp_check"
+        rule: "Multiple identical requests with same timestamp"
+        
+      - type: "request_sequence"
+        rule: "Identical sequence of requests from same user"
+    
+    rejection_code: "THREAT_REPLAY_ATTEMPT"
+    rejection_reason: "Duplicate request detected within skip window"
+    alert_level: "MEDIUM"
+    recommended_action: "block_request"
+    
+    test_patterns:
+      - scenario: "identical_quote_100ms_apart"
+        description: "Same quote hash submitted twice within 100ms"
+      - scenario: "sequential_identical_quotes"
+        description: "Three identical quote submissions in rapid succession"
+
+  THREAT_OVERRIDE_ATTEMPT:
+    threat_type: "authorization_bypass"
+    severity: "CRITICAL"
+    description: "Detect attempts to bypass or override validation gates"
+    detection_methods:
+      - type: "gate_skip_request"
+        rule: 'Request includes "skip_validation" or similar param'
+        
+      - type: "enforcement_level_modification"
+        rule: 'Attempt to change gate "enforcement_level" from REJECT_NO_OVERRIDE'
+        
+      - type: "policy_change_request"
+        rule: "Request attempts to modify validation policy at runtime"
+    
+    rejection_code: "THREAT_OVERRIDE_ATTEMPT"
+    rejection_reason: "Override attempt blocked - gates are non-negotiable"
+    alert_level: "CRITICAL"
+    recommended_action: "block_request_alert_security"
+
+# Detection Configuration
+detection:
+  enabled: true
+  log_all_detections: true
+  alert_threshold: "MEDIUM"  # Alert on MEDIUM, HIGH, CRITICAL
+  quarantine_flagged_requests: true
+  
+# Response Configuration  
+response:
+  default_rejection_message: "Quote validation failed due to security policy"
+  include_rejection_reason: true
+  include_threat_code: true
+  include_remediation: false  # Set to true for user-facing responses
+
+# Tuning Parameters
+tuning:
+  false_positive_tolerance: 0.01  # Accept <1% false positives
+  detection_accuracy_target: 0.99  # Target >99% True Positive Rate
+  review_cycle_days: 30  # Review threat rules every 30 days
