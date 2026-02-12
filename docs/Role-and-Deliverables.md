@@ -68,7 +68,9 @@ _No implementation or exploit coding required._
 ### Milestone Deliverables
 
 **Milestone 1**
-- v0 system specification (interfaces, assumptions, invariants)
+- Threat model v1 (assets, adversaries, attack surface)
+- 10–15 specs with ID system (S-01 to S-15)
+- Threat→Spec mapping table
 - GWT acceptance criteria
 - Measurement protocol draft
 
@@ -118,34 +120,36 @@ _No deep DeFi, blockchain, or security knowledge required._
 
 ---
 
-## Role D — Implementation #2: Harness / Artifacts Owner (Critical Role)
+## Role D — Implementation #2: Guardrails / Contract Owner (Critical Role)
 
 ### Role Summary
-Builds the **testing and evaluation infrastructure**. Ensures experiments are reproducible, metrics are computed correctly, and results are automatable.
+Builds the **L1 and L2 guardrail enforcement system**. L1 provides pre-LLM input sanitization, max-risk filters, untrusted context segregation, and post-LLM output checks (structured output validation, refusal enforcement). L2 provides deterministic policy enforcement: allowlisted routers, slippage ≤ 10%, approval constraints (no unlimited approve), value ≤ daily cap. L3 (on-chain smart contract restrictions) is **optional and deprioritized** per specification.md.
 
 ### Learning Requirements
-- Python testing frameworks (e.g., pytest)
-- Experiment artifact structuring (JSON logs)
-- Security evaluation metrics (ASR, FP, TR)
-- Basic CI configuration (e.g., GitHub Actions)
+- L1 guardrail patterns (input sanitization, output validation)
+- L2 deterministic policy enforcement concepts
+- Gas and latency profiling
+- Smart contract / Solidity (optional, only if L3 is pursued)
 
-_No blockchain programming required._
+_L1 + L2 are the must-have layers (rule engine / middleware). L3 is optional._
 
 ### Milestone Deliverables
 
 **Milestone 1**
-- Smoke test harness
-- Artifact schema definition
-- Basic CI pipeline execution
+- L1 guardrail rule engine framework
+- L2 policy engine skeleton (not necessarily on-chain contract)
+- ≥3 negative tests (violations must be blocked)
 
 **Milestone 2**
-- Full red-team test harness
-- Metric computation scripts
-- Reproducible experiment runs
+- Complete L1 rule engine (all specs enforced)
+- L2 with full enforcement (cap/allowlist/replay)
+- Gas measurement comparison (Config0 vs Config2)
+- Integration with Role C's agent backend
 
 **Milestone 3**
-- One-command reproduction scripts
-- Final evaluation artifacts used in report
+- Production-ready guardrail code (commented)
+- Final gas/latency measurements
+- Security analysis writeup for report
 
 ### Estimated Workload
 - High, especially in Milestones 1 and 2
@@ -153,35 +157,49 @@ _No blockchain programming required._
 
 ---
 
-## Role E — Security & Verification
+## Role E — Red Team / Measurement
 
 ### Role Summary
-Designs and labels **adversarial and benign test cases**. Provides threat modeling and interprets security failures.
+Designs, generates, and executes the **100-case adversarial test suite** (4 categories × 25). Builds the **evaluation harness** that computes ASR, TR, and FP across three defense configurations (Config0: bare LLM, Config1: +L1, Config2: +L1+L2). Owns all experiment artifacts and reproducibility.
 
 ### Learning Requirements
-- Prompt injection and indirect attack patterns
-- Adversarial testing concepts
-- Writing structured test cases with expected outcomes
+- Prompt injection patterns (direct, indirect/encoded)
+- Tool-poisoning and memory-poisoning concepts
+- Python testing frameworks (e.g., pytest)
+- Experiment harness design
+- ASR, TR, FP metric computation
+- Basic CI configuration (e.g., GitHub Actions)
+- Statistical analysis
 
-_No exploit development or blockchain internals required._
+_No blockchain programming required._
 
 ### Milestone Deliverables
 
 **Milestone 1**
-- Threat model v1
-- Initial labeled test cases (benign and adversarial)
+- Attack sample generator v0
+- Attack taxonomy (4 categories: direct injection, indirect/encoded injection, tool-poisoning, memory-poisoning)
+- ≥10 labeled samples per category (≥40 total)
+- Experiment harness skeleton
+- Smoke test against bare LLM
 
 **Milestone 2**
-- Expanded adversarial suite
+- Expanded to 25 samples per category (100 total)
+- Full harness with automated metric computation
+- Three-config comparison results
+- results.csv with ASR/FRR/gas/latency
 - Failure case analysis
 
 **Milestone 3**
-- Final threat model and attack taxonomy
-- Security results summary for report
+- Final versioned attack dataset
+- Complete results with statistical analysis
+- Figures/tables for report
+- One-command reproduction script
+- Final threat model and attack taxonomy writeup
 
 ### Estimated Workload
-- Medium
-- Conceptually challenging but implementation-light
+- High, especially in Milestones 1 and 2
+- Owns harness and measurement pipeline
+- Central to project success and research credibility
 
 ---
 
@@ -192,6 +210,6 @@ _No exploit development or blockchain internals required._
 | A — PM | Medium–High | Coordination fatigue |
 | B — Spec | Medium | Abstract reasoning errors |
 | C — Agent | Medium | Scope creep |
-| D — Harness | High | Technical complexity |
-| E — Security | Medium | Test quality variance |
+| D — Guardrails | High | Technical complexity |
+| E — Red Team | High | Test quality variance |
 
