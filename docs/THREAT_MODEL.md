@@ -44,7 +44,7 @@ This document outlines the security threats facing our DeFi Transaction Agent. I
 ## 5. Acceptance Criteria
 *   **Attack Success Rate (ASR):** Must be < 5% for refined models (Target for Milestone 2).
 
-*   **False Refusal Rate:** Legitimate requests must not be blocked (Target 0%).
+*   **False Rejection Rate (FRR):** Legitimate requests should not be blocked (False Refusal used as equivalent wording in earlier drafts; target 0%).
 
 ## 攻击分类法 (Expanded Taxonomy for M1)
 

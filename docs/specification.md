@@ -1,13 +1,13 @@
 # Adversarially-Robust Minimal DeFi Agent For Cryptocurrency Swapping
 
 ## Feature
-This is a chat-based AI agent that generates and validates an unsigned transaction plan for cryptocurrecncy swaps without signing or broadcasting transaction. The system operates in a one-owner-one-agent setting in an open communication environment and uses L1/L2/L3 guardrails (pre-LLM filters and post-LLM checks, deterministic policy engine, on-chain enforcement) to maintain security and privacy.
+This is a chat-based AI agent that generates and validates an unsigned transaction plan for cryptocurrecncy swaps without signing or broadcasting transaction. The system operates in a one-owner-one-agent setting in an open communication environment and uses L1/L2 guardrails (pre-LLM filters and post-LLM checks, deterministic policy engine) to maintain security and privacy. L3 on-chain restrictions are optional and treated as a bonus extension.
 
 ## Goals
 - Privacy-enhancing: Do not disclose user's wallet address, balance, intent, or transaction history to unauthorized third-party.
 - Adversial-resilient: Tolerate malicious instructions and content in a Telegram/WhatsApp "arena" without emitting policy-violating swap suggestions.
 - Custody-preserving: The owner will never have to give their private key to the agent.
-- Measurable security: Evaluate attack success rate (ASR), time to refusal (TR), false positive rate (FP) against prompt injection, tool poisoning, and memory poisioning under L1/L2 guardrails with deterministic tests.
+- Measurable security: Evaluate attack success rate (ASR), false rejection rate (FRR), latency, and gas overhead against prompt injection, tool poisoning, and memory poisioning under L1/L2 guardrails with deterministic tests. FP/TR can be tracked as supplemental diagnostics.
 
 ## Non-Goals
 The project does not provide server-side key custody or market making service. The agent is only a small and well-tested system that prepares wallet-native on-chain swaps and transactions and awaits legit approval.
@@ -36,16 +36,16 @@ The project does not provide server-side key custody or market making service. T
     - Privacy protection: **Given** a successful planning flow, **when** generating outputs, **then** no TX hash is published by the agent.
 - Security Benchmark criteria
 
-    In each iteration (Bare LLM -> with L1 -> with L2 -> with L3), a 100‑case red‑team suite (25 direct, 25 indirect/encoded, 25 tool‑poisoning, 25 memory‑poisoning) will be conducted.
+    In each core configuration (Config0: Bare LLM -> Config1: +L1 -> Config2: +L1+L2), a 100‑case red‑team suite (25 direct, 25 indirect/encoded, 25 tool‑poisoning, 25 memory‑poisoning) will be conducted. L3 may be evaluated only as an optional extension if time permits.
 
-    - **Given** the ASR of bare LLM as baseline, **when** evaulating the ASR, **then** baseline < 20% and post-tuning ASR < 5%.
-    - **Given** malicious instruction or posioning, **when** the agent/policy engine detects it, **then** TR < 6 seconds.
-    - **Given** legit instruction, **when** the agent detects it, **then** it shall not dismiss it as malicious instruction (FP = 0%).
+    - **Given** Config0 as baseline, **when** evaluating ASR across Config0/1/2, **then** ASR should decrease materially and Config2 target is < 5%.
+    - **Given** legit instruction, **when** the policy stack evaluates it, **then** FRR should remain within an acceptable bound (target < 10%).
+    - **Given** all configurations, **when** benchmarked end-to-end, **then** latency and gas overhead should be reported with reproducible methodology.
 
 ## Constraints
 - The agent must observe least privilege principle. Keep the agent prompt immutable and segregate trusted/untrusted/external contexts.
 - Performance should be reasonable. Ideally, agent response time < 3 seconds and Market snapshot + DEX quote < 2 seconds.
-- The team will develop a minimum viable product using Ethereum chain. Ethereum is the main supported token.
+- The team will develop and evaluate the MVP in an Ethereum-compatible test environment (local/fork first, public testnet optional) to prioritize reproducibility.
 
 ## Interface and Data Model
 Refer to the ``docs/image`` directory on GitHub for a series of overview architecture diagrams.
@@ -53,4 +53,4 @@ Refer to the ``docs/image`` directory on GitHub for a series of overview archite
 ## Remark on L1/L2/L3
 - L1 is the first line of defense and operates entirely outside the agent's reasoning. It consists of pre‑LLM guards (input sanitization, max‑risk filters, removing untrusted instructions) and post‑LLM checks (validating the model's output structure), ensuring that the agent can emits unsafe text or unsafe tool calls.
 - L2 performs deterministic, reproducible validation of all swap quotes and planned actions including allowlists, slippage limits, and swap value caps. It overrides the agent's output when necessary.
-- L3 is a set of smart contract restrictions like L2. If L1 + L2 is already satisfactory, the team may reconsider the necessity of adding this layer.
+- L3 is a set of smart contract restrictions like L2 and is not part of the required milestone baseline. If L1 + L2 is already satisfactory, the team may keep L3 as optional future work.

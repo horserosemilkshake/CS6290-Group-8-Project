@@ -4,7 +4,7 @@
 **Team Size**: 5 members  
 **Duration**: 10 weeks  
 **PM**: efan  
-**Last Updated**: 2025-02-12
+**Last Updated**: 2026-02-13
 
 ---
 
@@ -157,17 +157,17 @@ This addresses the spec-driven bonus criteria and provides clear acceptance crit
 ## Decision 6: Team Division of Labor
 
 **Date**: Week 2  
-**Decision**: Module-based ownership with mandatory cross-validation
+**Decision**: Role-aligned ownership with mandatory cross-validation
 
 ### Role Assignments
 
 | Member | Primary Module | Secondary Responsibility | Evidence Focus |
 |--------|----------------|-------------------------|----------------|
 | **efan (PM)** | Integration + Report | SCOPE.md, interfaces.md, reproducibility | Coordinated final deliverables + results synthesis |
-| **Member B** | Specs & Threat Model | Threat→Spec→Test mapping | Coverage analysis scripts |
-| **Member C** | Agent & Tx Builder | Natural language → TxPlan pipeline | Transaction construction logs |
-| **Member D** | Guardrails + Contracts | L1 rules + L2 enforcement | Property tests + gas measurements |
-| **Member E** | Red Team & Measurement | Attack dataset + experiment harness | Statistical analysis + results tables |
+| **Member B** | Architecture & Specification | Given/When/Then criteria + measurement protocol | Spec revision logs + traceability tables |
+| **Member C** | Agent Backend & Tx Builder | Natural language → TxPlan pipeline | Transaction construction logs + API docs |
+| **Member D** | Harness & Artifact Infrastructure | Experiment automation + metrics pipeline | Reproducible runs + artifact integrity checks |
+| **Member E** | Security & Verification | Threat model + adversarial/benign case labeling | Failure analysis + security summary tables |
 
 **Cross-Validation Requirement** (PM mandate):
 - Every milestone: Each member must validate ≥1 peer's work
@@ -175,7 +175,8 @@ This addresses the spec-driven bonus criteria and provides clear acceptance crit
 - Prevents siloed work and ensures collective understanding
 
 **Rotation Plan** (Week 6):
-- B ↔ E swap validation duties (specs ↔ measurement)
+- B ↔ E swap validation duties (spec consistency ↔ threat/label consistency)
+- C ↔ D perform interface challenge (agent output schema ↔ harness input contract)
 - Documented as "peer challenge & response" in Evidence Packs
 
 ---
@@ -232,6 +233,11 @@ This addresses the spec-driven bonus criteria and provides clear acceptance crit
 - Attack dataset versioned with SHA-256 hashes
 - `attacks/` directory structure: `attacks/<category>/<seed>_<hash>.json`
 
+**Execution Ownership** (assigned to Member D):
+- Integrate labeled attacks into automated harness pipelines
+- Compute ASR/FRR/latency/gas metrics from standardized artifacts
+- Maintain deterministic experiment scripts and artifact schemas
+
 **Validation** (assigned to Member E):
 - Random sample (N≥10) manually reviewed for label accuracy
 - Cross-machine reproducibility test (same seed → same outputs)
@@ -254,11 +260,11 @@ This addresses the spec-driven bonus criteria and provides clear acceptance crit
 ### Milestone Checkpoints
 
 **M1 (Week 3-4): MVP Runthrough**
-- Deliverable: Agent can construct valid TxPlan; guardrails reject ≥1 attack type; basic contract deployed
+- Deliverable: Agent can construct valid TxPlan; smoke harness runs end-to-end; initial threat model + labeled test cases complete
 - Evidence Standard: `make reproduce` runs end-to-end
 
 **M2 (Week 6-7): Non-Trivial Risk Closed Loop**
-- Deliverable: Allowance abuse threat fully addressed (Threat→Spec→Enforcement→Test→Metric)
+- Deliverable: Allowance abuse threat addressed with full chain (Threat→Spec→Security Test Case→Harness→Metric)
 - Evidence Standard: Three-config comparison with measurable ASR reduction
 
 **M3 (Week 9-10): Final Report + Demo**
@@ -350,8 +356,8 @@ I will personally verify reproducibility in a fresh environment before each mile
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | LLM inference too slow | Medium | High (unusable latency) | **Fallback**: Use smaller local model or GPT-3.5-turbo with caching |
-| Attack dataset insufficient | Low | Medium | **Buffer**: Generate 2x planned samples, filter to highest quality |
-| Contract deployment issues | Low | High | **Early action**: Deploy and verify contracts by Week 4 |
+| Harness pipeline instability | Medium | High (non-reproducible results) | **Owner D**: Lock artifact schema, CI smoke runs, deterministic seeds |
+| Test label quality variance | Medium | Medium | **Owner E**: Labeling rubric + dual review + disagreement log |
 | Team member unavailability | Medium | Medium | **Cross-training**: Each module has documented interfaces + tests |
 | Reproducibility failures | Medium | Critical | **PM mandate**: Weekly reproducibility checks starting Week 5 |
 
@@ -416,7 +422,7 @@ I will personally verify reproducibility in a fresh environment before each mile
 
 3. **Formal Verification**: Explore Certora/Halmos for contract specs?
    - **Current stance**: Bonus if time permits, not required for full marks
-   - **Assigned**: Member D to investigate feasibility
+   - **Assigned**: Member E to investigate feasibility (with C support if implementation changes are required)
 
 ---
 
@@ -424,6 +430,7 @@ I will personally verify reproducibility in a fresh environment before each mile
 
 | Date | Change | Rationale |
 |------|--------|-----------|
+| 2026-02-13 | Updated role ownership model (D=Harness, E=Security) | Align decision log with revised role-and-deliverables and timeline |
 | 2025-02-12 | Initial decision log created | Consolidate PM work and team alignment |
 | 2025-02-12 | Added Privacy-Enhancing Controls (Decision 11) | Address PET alignment feedback |
 | 2025-02-12 | Clarified "approve" definition (Decision 2) | Response to team question about ambiguity |
@@ -447,5 +454,5 @@ This decision log represents ~15 hours of PM work including:
 ---
 
 **Document Status**: Living document, updated weekly by PM  
-**Version**: 1.0  
+**Version**: 1.1  
 **Distribution**: All team members + course staff (if requested)
