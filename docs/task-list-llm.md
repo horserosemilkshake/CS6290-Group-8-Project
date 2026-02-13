@@ -42,20 +42,22 @@ Based on the specification for the *Adversarially‑Robust Minimal DeFi Agent*.
 24. [ ] Benchmark agent response time (p95 < 3s). 
 25. [ ] Benchmark tools quote latency (p95 < 2s). 
 
-## I. Security & Red‑Team Harness
-26. [ ] Build deterministic 100‑case red‑team suite. 
-27. [ ] Run ASR baseline (bare LLM) and document <20% target. 
-28. [ ] Measure ASR post‑L1/L2 and confirm <5%. 
-29. [ ] Validate TR < 6 seconds under malicious cases. 
-30. [ ] Validate FP = 0% on legit user requests. 
+## I. Security Verification (Role E)
+26. [ ] Build and label deterministic 100‑case adversarial/benign suite. 
+27. [ ] Produce threat‑to‑test coverage matrix and review missing threats. 
+28. [ ] Write failure-case analysis (root cause + severity + expected defense layer). 
 
-## J. User Flow End‑to‑End Tests
-31. [ ] E2E test: real user “Swap 1 ETH to USDT on Ethereum” path produces valid TxPlan. 
-32. [ ] E2E test: malicious user prompt causes safe refusal and spotlighted logging. 
+## J. Harness & Metrics Automation (Role D)
+29. [ ] Build automated runner for Config0/1/2 with fixed seeds. 
+30. [ ] Compute ASR/FRR/latency/gas from standardized artifacts and export results.csv. 
+31. [ ] Verify reproducibility across two clean checkouts/environments using the same seed. 
 
-## K. Errors & Observability
-33. [ ] Implement deterministic error model (`POLICY_BLOCKED`, `QUOTE_EXPIRED`, etc.). 
-34. [ ] Add structured logs (run_id, decisions, reason codes) for every plan. 
+## K. User Flow End‑to‑End Tests
+32. [ ] E2E test: real user “Swap 1 ETH to USDT on Ethereum” path produces valid TxPlan. 
+33. [ ] E2E test: malicious user prompt causes safe refusal and spotlighted logging. 
 
-## L. Finalization & Documentation
-35. [ ] Deploy MVP on Ethereum and update documentation (API, data model, 100‑case harness). 
+## L. Errors & Observability
+34. [ ] Implement deterministic error model (`POLICY_BLOCKED`, `QUOTE_EXPIRED`, etc.) with structured logs (run_id, decisions, reason codes). 
+
+## M. Finalization & Documentation
+35. [ ] Produce one-command reproducibility workflow and update docs (API, data model, 100‑case harness, runbook). 
