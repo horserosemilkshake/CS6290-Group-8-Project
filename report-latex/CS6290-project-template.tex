@@ -1,0 +1,119 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Adversarially-Robust Minimal DeFi Agent For Cryptocurrency Swapping}
+
+\author{\IEEEauthorblockN{Biying FANG (ID:12341000)\IEEEauthorrefmark{1}, Yifan LI (ID:12341000)\IEEEauthorrefmark{1}, Mengmeng SU (ID:12341000)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:12341000)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
+\IEEEauthorblockA{\IEEEauthorrefmark{1}College of Computer Science\\
+City University of Hong Kong, Tat Chee Avenue, Kowloon, Hong Kong SAR\\
+Email: tszctsoi4-c@my.cityu.edu.hk} }
+
+
+\maketitle
+
+
+\section{Introduction}
+Decentralized Finance (DeFi) user interfaces are undergoing a structural shift. Instead of manually constructing and signing transactions, users increasingly interact with chat-based or AI-assisted agents that translate natural-language instructions into on-chain actions. Examples include wallet copilots, Telegram trading bots, and conversational DeFi assistants.
+
+This shift introduces a new and under-explored attack surface: the language-mediated transaction planning layer that sits before signing and broadcasting. Unlike smart contracts, which are deterministic and formally analyzable, large language models (LLMs) operate probabilistically and are known to be vulnerable to prompt injection, social engineering, and context poisoning—especially in open communication environments such as Telegram or WhatsApp.
+
+In such environments, an adversary can directly interact with the same agent as the legitimate owner, embedding malicious instructions, indirect prompts, or encoded payloads that attempt to influence transaction generation. Because blockchain transactions are irreversible, even a single unsafe plan can result in permanent loss.
+
+Despite extensive research on smart-contract vulnerabilities, MEV, oracle manipulation, and key custody, there is limited empirical work on the security of LLM-driven DeFi transaction planning under adversarial language inputs.
+
+
+
+\section{Application Setting}
+
+\subsection{System Architecture}
+Guidelines: In this subsection, you should describe the general application setting of encrypted search, e.g., how many parties are there in the real application setting, the particular role of each party, and the participation of each party (i.e., what each party does in  the work flow).
+
+\subsection{Threat Model}
+
+Guidelines: In this subsection, you should explain the threat assumptions generally adopted by the literature on encrypted search. For example, you may clearly indicate the trust assumptions of each party involved in the application (i.e., who is trusted or untrusted?), the goal of the untrusted party (e.g., what does the adversary want to learn?), how the adversary will behave, in a semi-honest fashion or in a malicious manner?
+
+
+\begin{table}[h]
+\centering
+\caption{Comparison of encrypted search schemes.}
+\label{my-label}
+\begin{tabular}{|l|l|l|}
+\hline
+Scheme & Search Complexity & Index Size \\ \hline
+\cite{SongWP00}   & ...              & ...       \\ \hline
+...    & ...               & ...        \\ \hline
+\end{tabular}
+\end{table}
+
+
+\section{Research Directions of Encrypted Search}
+%
+
+Guidelines: In this subsection, you should introduce the typical research directions for encrypted search, describe in detail the goals of each research direction in terms of functionality and/or security. You should also specify and discuss the design challenges in each direction based on your literature study and or your personal perspectives. Besides, you should properly discuss the existing works and try to reflect the state-of-the-art. A possible organization structure is given below. 
+
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=2in]{./fig1.png}
+  \caption{Outsourcing encrypted data to the cloud.}
+  \label{fig_model}
+\end{figure}
+
+\subsection{Basic Searchable Encryption}
+
+\textbf{Goals.} The description goes here.
+
+
+\textbf{Design challenges.} The description goes here.
+
+\textbf{Related work.} The description goes here.
+
+\subsection{Dynamic Searchable Encryption}
+
+\textbf{Goals.} The description goes here.
+
+
+\textbf{Design challenges.} The description goes here.
+
+\textbf{Related work.} The description goes here.
+
+
+
+
+\subsection{Boolean Searchable Encryption}
+
+\textbf{Goals.} The description goes here.
+
+
+\textbf{Design challenges.} The description goes here.
+
+\textbf{Related work.} The description goes here.
+
+\subsection{Any Other Possible Categories}
+
+\textbf{Goals.} The description goes here.
+
+
+\textbf{Design challenges.} The description goes here.
+
+\textbf{Related work.} The description goes here.
+
+\section{Conclusion}
+
+The conclusion goes here.
+
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+
+\end{document}
