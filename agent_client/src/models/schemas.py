@@ -7,6 +7,7 @@ from datetime import datetime
 
 
 # ============ Owner -> Agent API ============
+
 class PlanRequest(BaseModel):
     """User request for a transaction plan"""
     request_id: str = Field(..., description="Unique request ID")
@@ -16,6 +17,7 @@ class PlanRequest(BaseModel):
 
 
 # ============ Agent -> Owner Response ============
+
 class UnsignedTransaction(BaseModel):
     """Unsigned transaction data"""
     chain_id: int
@@ -33,14 +35,52 @@ class PolicyLog(BaseModel):
     violations: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+# ============ Agent Internal & Tool Schemas ============
+
+class TxData(BaseModel):
+    """Represents the raw transaction data from a quote."""
+    to: str
+    data: str
+    value: str
+
+
+class QuoteResponse(BaseModel):
+    """Represents a single quote from a DEX aggregator."""
+    to_token_amount: str
+    gas_price_gwei: str
+    estimated_gas: str
+    tx: TxData
+
+
+class ToolResponse(BaseModel):
+    """Aggregated response from all tools."""
+    market_snapshot: Dict[str, float]
+    quote: QuoteResponse
+
+
+# ============ Agent -> Quote Tool ============
+
+class SwapIntent(BaseModel):
+    """Structured swap intent, parsed from user input by the LLM."""
+    # Fields must match the JSON output structure defined in the LLM's system prompt.
+    chain_id: int = Field(..., description="The chain ID for the transaction, e.g., 1 for Ethereum Mainnet.")
+    sell_token: str = Field(..., description="Symbol of the token to sell (e.g., WETH).")
+    buy_token: str = Field(..., description="Symbol of the token to buy (e.g., USDC).")
+    sell_amount: str = Field(..., description="The amount of sell_token to swap, in its smallest unit (e.g., wei).")
+    user_address: Optional[str] = Field(None, description="The user's wallet address.")
+
+
 class TxPlan(BaseModel):
     """Transaction plan"""
     plan_id: str
-    status: str
+    request_id: str
+    status: str  # e.g., "NEEDS_OWNER_SIGNATURE", "REJECTED", "ERROR"
     summary: str
-    quote_snapshot: Optional[Dict[str, Any]] = None
-    unsigned_transaction: Optional[UnsignedTransaction] = None
-    policy_log: Optional[PolicyLog] = None
+    intent: SwapIntent
+    quote: QuoteResponse
+    policy_decision: str  # "ALLOW" or "BLOCK"
+    unsigned_tx: UnsignedTransaction
+    failure_reason: Optional[str] = None
 
 
 class PlanResponse(BaseModel):
@@ -49,15 +89,6 @@ class PlanResponse(BaseModel):
     status: str  # "NEEDS_OWNER_SIGNATURE", "BLOCKED_BY_POLICY", etc.
     tx_plan: Optional[TxPlan] = None
     error: Optional[Dict[str, Any]] = None
-
-
-# ============ Agent -> Quote Tool ============
-class SwapIntent(BaseModel):
-    """Structured swap intent"""
-    chain_id: int
-    sell_token: str
-    buy_token: str
-    sell_amount: str  # String in wei unit
 
 
 class QuoteRequest(BaseModel):
@@ -81,15 +112,8 @@ class Quote(BaseModel):
     valid_to: int
 
 
-class QuoteResponse(BaseModel):
-    """Quote response"""
-    request_id: str
-    status: str
-    quotes: List[Quote] = Field(default_factory=list)
-    meta: Optional[Dict[str, Any]] = None
-
-
 # ============ Agent -> Policy Engine ============
+
 class PolicyRequest(BaseModel):
     """Policy evaluation request"""
     request_id: str
@@ -111,6 +135,7 @@ class PolicyResponse(BaseModel):
 
 
 # ============ LLM Internal Models ============
+
 class LLMPlanOutput(BaseModel):
     """Structured plan output from LLM"""
     intent: SwapIntent

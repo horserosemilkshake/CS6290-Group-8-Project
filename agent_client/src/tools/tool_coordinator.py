@@ -4,103 +4,74 @@ This module reserves interfaces, waiting for implementation after investigating 
 """
 from typing import Dict, Any, Optional
 from ..utils.logger import logger
-from ..models.schemas import QuoteRequest, QuoteResponse, Quote
+from ..models.schemas import QuoteRequest, QuoteResponse, Quote, SwapIntent, ToolResponse
+import asyncio
 
+# Mock function to simulate fetching token prices from an external API like CoinGecko
+async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, float]:
+    """
+    Simulates fetching the current market price of tokens.
+    In a real implementation, this would call CoinGecko, Binance, etc.
+    """
+    print(f"INFO: [Tool] Fetching market snapshot for {sell_token} and {buy_token}...")
+    # Returning fixed mock prices for simplicity
+    await asyncio.sleep(0.1) # Simulate network latency
+    return {
+        sell_token: 2800.50,  # Mock price for WETH
+        buy_token: 0.99,   # Mock price for USDC
+    }
 
-class ToolCoordinator:
-    """Tool Coordinator: Unified management of external tool calls"""
+# Mock function to simulate getting a quote from a DEX aggregator like 1inch
+async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
+    """
+    Simulates fetching a swap quote from a DEX aggregator API (e.g., 1inch).
+    This mock version returns a pre-defined, structured quote.
+    """
+    print(f"INFO: [Tool] Getting swap quote for {intent.sell_amount} of {intent.sell_token} -> {intent.buy_token}...")
     
-    def __init__(self):
-        # TODO: Initialize various tool clients
-        # self.coingecko_client = ...
-        # self.oneinch_client = ...
-        pass
+    # In a real implementation, you would construct a URL and make an HTTP request
+    # to an aggregator's API endpoint with the intent's parameters.
+    # Example: https://api.1inch.io/v5.0/1/quote?fromTokenAddress=...&toTokenAddress=...&amount=...
+
+    await asyncio.sleep(0.2) # Simulate network latency
+
+    # This is a mock response that mimics the structure of a real 1inch quote.
+    # We need to convert sell_amount from wei string to a number for mock calculation
+    sell_amount_in_ether = int(intent.sell_amount) / 1e18
+    mock_to_amount = sell_amount_in_ether * 2800 # Mock conversion WETH -> USDC
     
-    async def get_market_data(self, tokens: list) -> Dict[str, Any]:
-        """
-        Get market data (CoinGecko, etc.)
-        
-        TODO: Implement real market data fetching
-        - Connect to CoinGecko API
-        - Get token prices, market cap, etc.
-        - Handle rate limiting and error retry
-        """
-        logger.info(f"Fetching market data for tokens: {tokens}")
-        
-        # Mock data
-        return {
-            "ETH": {"price_usd": 3200, "volume_24h": 1000000000},
-            "USDT": {"price_usd": 1.0, "volume_24h": 5000000000}
+    mock_quote = {
+        "to_token_amount": str(int(mock_to_amount * 1e6)), # Assuming USDC has 6 decimals
+        "gas_price_gwei": "50",
+        "estimated_gas": "300000",
+        "tx": {
+            "from": intent.user_address,
+            "to": "0x1111111254fb6c44bac0bed2854e76f90643097d", # 1inch v5 Router
+            "data": "0xdeadbeef...", # Mock transaction data payload
+            "value": "0",
         }
+    }
     
-    async def get_dex_quotes(self, quote_request: QuoteRequest) -> QuoteResponse:
-        """
-        Get DEX quotes (1inch, 0x aggregators, etc.)
-        
-        TODO: Implement real DEX quote fetching
-        - Connect to 1inch API
-        - Connect to 0x API
-        - Compare quotes from multiple aggregators
-        - Return sorted best quotes list
-        
-        Args:
-            quote_request: Quote request
-        
-        Returns:
-            QuoteResponse: Response containing multiple quotes
-        """
-        logger.info(f"Fetching DEX quotes for request: {quote_request.request_id}")
-        
-        intent = quote_request.intent
-        
-        # Mock quote data
-        mock_quotes = [
-            Quote(
-                aggregator="1inch",
-                router_address="0x1111111254EEB25477B68fb85Ed929f73A960582",
-                buy_amount="3200000000",  # 3200 USDT (6 decimals)
-                price_impact_bps=50,
-                slippage_bps=100,
-                fee_bps=20,
-                gas_estimate="150000",
-                gas_price_wei="100000000000",  # 100 gwei
-                transaction_calldata_preview="0x12aa3caf000000000000000000...",
-                valid_to=1698393600
-            ),
-            Quote(
-                aggregator="0x",
-                router_address="0xDef1C0ded9bec7F1a1670819833240f027b25EfF",
-                buy_amount="3195000000",
-                price_impact_bps=60,
-                slippage_bps=120,
-                fee_bps=25,
-                gas_estimate="160000",
-                gas_price_wei="110000000000",  # 110 gwei
-                transaction_calldata_preview="0x34bb5caf000000000000000000...",
-                valid_to=1698393600
-            )
-        ]
-        
-        return QuoteResponse(
-            request_id=quote_request.request_id,
-            status="SUCCESS",
-            quotes=mock_quotes,
-            meta={"fetched_at": "2023-10-27T09:59:55Z", "is_mock": True}
-        )
+    return QuoteResponse(**mock_quote)
+
+async def tool_coordinator(intent: SwapIntent) -> ToolResponse:
+    """
+    Coordinates calls to various tools (market data, quotes) to fulfill the user's intent.
+    """
+    print("INFO: [Coordinator] Starting tool coordination...")
     
-    def validate_router_address(self, address: str) -> bool:
-        """
-        Validate if router address is in whitelist
-        
-        TODO: Maintain a whitelist of trusted router addresses
-        """
-        # Mock whitelist
-        allowlisted_routers = [
-            "0x1111111254EEB25477B68fb85Ed929f73A960582",  # 1inch v5
-            "0xDef1C0ded9bec7F1a1670819833240f027b25EfF",  # 0x
-        ]
-        return address in allowlisted_routers
-
-
-# Global instance
-tool_coordinator = ToolCoordinator()
+    # 1. Fetch market data and a DEX quote concurrently
+    market_snapshot_task = get_market_snapshot(intent.sell_token, intent.buy_token)
+    swap_quote_task = get_swap_quote(intent)
+    
+    snapshot, quote = await asyncio.gather(market_snapshot_task, swap_quote_task)
+    
+    print("INFO: [Coordinator] Tools finished. Aggregating response.")
+    
+    # 2. Aggregate results into a single structured response
+    tool_response = ToolResponse(
+        market_snapshot=snapshot,
+        quote=quote
+    )
+    
+    return tool_response

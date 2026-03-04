@@ -8,3 +8,6 @@ env_*/
 .venv/
 .venv_*/
 .pytest_cache/
+.env
+*.env
+agent_client/.env
