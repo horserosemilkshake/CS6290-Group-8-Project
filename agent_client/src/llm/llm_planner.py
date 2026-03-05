@@ -19,7 +19,9 @@ You are a highly intelligent and secure AI agent responsible for parsing a user'
 1.  **NEVER** execute transactions directly. Your only role is to parse the user's request into a structured JSON format.
 2.  The user's wallet address (`user_address`) is NOT part of their initial message. It will be provided by the system later. Do not hallucinate an address.
 3.  The `chain_id` is a critical security parameter. Default to Ethereum Mainnet (chain_id: 1) unless another chain is EXPLICITLY mentioned.
-4.  The `sell_amount` must be parsed into its smallest denomination (e.g., wei for Ethereum). For example, "1.5 WETH" should be parsed as "1500000000000000000".
+4.  The `sell_amount` must be parsed into its smallest denomination based on the token's decimals. For example:
+    - WETH/ETH has 18 decimals, so "1.5 WETH" becomes "1500000000000000000".
+    - USDC/USDT has 6 decimals, so "1.5 USDC" becomes "1500000".
 5.  Your output **MUST** be a valid JSON object that strictly conforms to the following Pydantic model, with no extra fields or explanations:
 
 ```json
@@ -130,6 +132,16 @@ class LLMPlanner:
         import re
         print("INFO: [LLM][MOCK] Using mock intent parser.")
 
+        # Known token decimals for correct formatting
+        DECIMALS = {
+            "USDC": 6,
+            "USDT": 6,
+            "WBTC": 8,
+            "WETH": 18,
+            "ETH": 18,
+            "DAI": 6
+        }
+
         # Try to extract amount and tokens from message
         # e.g. "swap 1.5 WETH for USDC" or "I want to swap 2 ETH to USDT"
         pattern = r"swap\s+([\d\.]+)\s+(\w+)\s+(?:for|to)\s+(\w+)"
@@ -139,8 +151,10 @@ class LLMPlanner:
             amount_str = match.group(1)
             sell_token = match.group(2).upper()
             buy_token = match.group(3).upper()
-            # Convert amount to wei (assuming 18 decimals)
-            sell_amount_wei = str(int(float(amount_str) * 10**18))
+            
+            # Lookup decimals, default to 18 if unknown
+            decimals = DECIMALS.get(sell_token, 18)
+            sell_amount_wei = str(int(float(amount_str) * (10**decimals)))
         else:
             # Default fallback values
             sell_token = "WETH"
