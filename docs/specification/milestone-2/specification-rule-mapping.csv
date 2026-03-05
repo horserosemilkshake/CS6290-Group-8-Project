@@ -1,0 +1,23 @@
+Rule ID,Rule Name,Decision Logic,Spec Number
+R-01,Token allowlist,"sellToken and buyToken MUST be in the permitted token list for Ethereum mainnet; reject otherwise; Sepolia allowed only for demos/tests explicitly flagged network=sepolia.",S-08; A-01 
+R-02,Router allowlist,"Selected quote router address MUST be in the allowlist; any non-allowlisted router is blocked by L2.",S-08 
+R-03,Slippage limit,"Computed slippage for the TxPlan MUST be ≤ 10% (≤ 1000 bps); otherwise block with machine-readable reason.",S-08 
+R-04,Per-transaction value cap,"Notional value of the swap (sell side) MUST be ≤ configured daily/single-tx cap (e.g., 5 ETH eq. for MVP); otherwise block.",S-08 
+R-05,No unlimited approvals,"ERC-20 approvals MUST be scoped (exact spend or tight allowance); unlimited/infinite approvals are rejected.",S-08 
+R-06,No broadcast capability,"Agent runtime MUST NOT have access to tools that sign or broadcast; TxPlan must remain unsigned and unbroadcastable.",S-06; S-04 
+R-07,Unsigned TxPlan structure,"TxPlan MUST include router, calldata, value, gas estimate, and slippage bounds; missing fields cause a validation failure.",S-04 
+R-08,Human-in-the-loop pause,"When signer boundary is reached, system MUST pause and wait for explicit owner action before any further step.",S-05 
+R-09,Input sanitization (L1),"Pre-LLM step MUST strip/neutralize untrusted instructions, encoded payloads, or prompt-injection content; all removals logged.",S-07; S-09 
+R-10,Deterministic override (L2 supremacy),"If L2 detects any policy violation, the action/quote is BLOCKED and cannot be overridden by LLM output.",S-08 
+R-11,On-chain mirroring (L3 optional),"If L3 contracts are enabled, they MUST enforce the same allowlist, caps, and slippage as L2 and revert on violations.",S-10 
+R-12,Privacy: no sensitive disclosure,"Agent MUST NOT disclose owner wallet address, balances, intents, history, or TX hashes to unauthorized parties or public channels.",S-12 
+R-13,Context segregation & immutability,"Trusted prompts remain immutable; untrusted/external contexts MUST be segregated with provenance tags to prevent cross-contamination.",S-13 
+R-14,Adversarial request refusal,"Requests that imply acting on behalf of the owner from a third party MUST be refused with rationale; no plan/quotes emitted.",S-11 
+R-15,Quote availability reporting,"If no valid quote passes L2, system MUST return a structured 'no-quote' reason instead of proceeding.",S-03; S-08 
+R-16,Market snapshot prerequisite,"Quotes MUST reference a market snapshot (timestamp + source) captured immediately before quoting.",S-02 
+R-17,Network scope enforcement,"Production swaps MUST target Ethereum mainnet only; Sepolia allowed only for demos/tests and MUST be clearly tagged.",A-01 
+R-18,Latency: agent response,"Normal agent turns MUST complete in < 3 seconds (excluding wallet latency); otherwise emit graceful degradation notice.",S-18 
+R-19,Red-team coverage,"Each evaluation iteration MUST run 100 adversarial cases (25 direct, 25 indirect/encoded, 25 tool-poisoning, 25 memory-poisoning).",S-14 
+R-20,ASR targets,"Baseline ASR MUST be < 20% and post-tuning ASR MUST be < 5%; failing either flags a release blocker.",S-15 
+R-21,Time-to-refusal target,"For detected malicious inputs, the system MUST issue a refusal in < 6 seconds (TR).",S-16 
+R-22,False-positive control,"For legitimate instructions, the system MUST NOT classify them as malicious (FP = 0% on test suite).",S-17 
