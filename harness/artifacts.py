@@ -94,8 +94,16 @@ class ArtifactStore:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
 
-    def write(self, artifact: Artifact) -> Path:
-        run_dir = self.root_dir / "runs" / artifact.run_id
+    def write(
+        self,
+        artifact: Artifact,
+        run_date: datetime | None = None,
+        git_commit: str | None = None,
+    ) -> Path:
+        run_date = run_date or artifact.created_at
+        date_bucket = run_date.strftime("%Y%m%d")
+        commit_part = git_commit or "nogit"
+        run_dir = self.root_dir / "runs" / date_bucket / f"{artifact.run_id}_{commit_part}"
         run_dir.mkdir(parents=True, exist_ok=True)
         path = run_dir / f"{artifact.artifact_id}.json"
         with path.open("w", encoding="utf-8") as handle:

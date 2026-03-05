@@ -1,5 +1,6 @@
-import json
+import json, datetime
 from pathlib import Path
+from datetime import datetime
 
 def generate():
     cases = []
@@ -51,7 +52,10 @@ def generate():
         })
 
     # 写入文件
-    output_path = Path(__file__).parent.parent / "testcases" / "milestone1_cases.json"
+    # output_path = Path(__file__).parent.parent / "testcases" / "milestone1_cases.json"
+    # 自动添加case生成日期
+    date = datetime.now().strftime("%Y-%m-%d")
+    output_path = Path(__file__).parent.parent / "testcases" / f"cases_{date}.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(cases[:40], f, indent=2, ensure_ascii=False)
     print(f"Generated 40 cases in {output_path}")
