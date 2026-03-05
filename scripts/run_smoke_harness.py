@@ -1,4 +1,11 @@
-from __future__ import annotations # 这行代码启用了一些未来版本Python的特性，主要是为了支持更灵活的类型注解。
+"""
+DEPRECATED (2026-03-03):
+    Replaced by scripts/run_integration_test.py which uses FastAPIAgentClient
+    to call the real Agent backend. This script only runs with PlaceholderAgentClient
+    (all results are UNEXECUTED), and its functionality is already covered by
+    tests/test_smoke_harness.py in pytest.
+"""
+from __future__ import annotations
 
 from pathlib import Path
 

@@ -16,7 +16,7 @@ from ..models.schemas import (
 from ..llm.llm_planner import llm_planner # type: ignore
 from ..tools.tool_coordinator import tool_coordinator
 from ..config.settings import settings
-# from ..policy.policy_engine import policy_engine # Will be integrated later
+from policy_engine.engine import evaluate_policy
 
 
 # ==============================================================================
@@ -186,15 +186,6 @@ output_guardrail = OutputGuardrail()
 # L1 Agent
 # ==============================================================================
 
-# Mock Policy Engine - for now, it always allows the transaction
-async def mock_policy_engine(tool_response: ToolResponse) -> dict:
-    """
-    Simulates the L2 Policy Engine.
-    In this mock version, it always returns 'ALLOW'.
-    """
-    print("INFO: [PolicyEngine] Mock validation. Returning ALLOW.")
-    await asyncio.sleep(0.05) # Simulate processing time
-    return {"decision": "ALLOW", "violations": []}
 
 
 class L1Agent:
@@ -274,12 +265,15 @@ class L1Agent:
                 return self._error_response(request_id, "QUOTE_VALIDATION_FAILED", error_msg or "Quote validation failed")
             
             # ========== Step 5: L2 Policy Engine - Deterministic policy check ==========
-            policy_response = await mock_policy_engine(tool_response)
+            policy_response = evaluate_policy(swap_intent, tool_response)
             
             # ========== Step 6: Policy decision handling ==========
             if policy_response.get("decision") == "BLOCK":
-                logger.warning(f"[L2] Policy blocked request: {policy_response.get('violations')}")
-                return self._error_response(request_id, "BLOCKED_BY_POLICY", "Transaction blocked by security policy.")
+                violations = policy_response.get("violations", [])
+                first = violations[0] if violations else {}
+                reason = first.get("description", "Transaction blocked by security policy")
+                logger.warning(f"[L2] Policy blocked request {request_id}: {violations}")
+                return self._error_response(request_id, "BLOCKED_BY_POLICY", reason)
 
             # ========== Step 7: Construct unsigned transaction plan (HITL pause point) ==========
             plan_id = f"plan_{uuid.uuid4().hex[:8]}"

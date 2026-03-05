@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
 import json
+import platform
 from pathlib import Path
+import random
+import subprocess
+import sys
 import time
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from harness.artifacts import ArtifactStore, build_artifact
 from harness.agent_clients import AgentClient, PlaceholderAgentClient
@@ -42,10 +47,18 @@ class SmokeHarness:
         self.store = ArtifactStore(artifact_root)
         self.agent_client = agent_client or PlaceholderAgentClient()
 
-    def run_suite(self, suite_path: Path, owner_id: str = "owner-000") -> Dict[str, Any]:
+    def run_suite(
+        self,
+        suite_path: Path,
+        owner_id: str = "owner-000",
+        seed: int = 6290,
+    ) -> Dict[str, Any]:
         run_start_ms = int(time.time() * 1000)
         cases = self._load_cases(suite_path)
+        random.seed(seed)
         run_id = str(uuid.uuid4())
+        git_commit = self._resolve_git_commit()
+        suite_sha256 = self._compute_file_sha256(suite_path)
         run_record = RunRecord(
             run_id=run_id,
             owner_id=owner_id,
@@ -69,6 +82,13 @@ class SmokeHarness:
 
         report = {
             "run": run_record.to_dict(),
+            "meta": {
+                "seed": seed,
+                "suite_sha256": suite_sha256,
+                "git_commit": git_commit,
+                "python_version": sys.version.split(" ")[0],
+                "platform": platform.platform(),
+            },
             "metrics": metrics,
             "results": [result.__dict__ for result in results],
         }
@@ -88,7 +108,8 @@ class SmokeHarness:
                 "t_end_ms": run_end_ms,
             },
         )
-        self.store.write(artifact)
+        artifact_path = self.store.write(artifact, run_date=run_record.created_at, git_commit=git_commit)
+        report["artifact_path"] = str(artifact_path)
 
         return report
 
@@ -111,3 +132,23 @@ class SmokeHarness:
             duration_s=duration,
             status="SKIPPED" if response.observed == "UNEXECUTED" else "OK",
         )
+
+    def _resolve_git_commit(self) -> Optional[str]:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            commit = result.stdout.strip()
+            return commit or None
+        except Exception:
+            return None
+
+    def _compute_file_sha256(self, file_path: Path) -> str:
+        digest = hashlib.sha256()
+        with file_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8192), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
