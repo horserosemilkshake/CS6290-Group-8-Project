@@ -124,13 +124,20 @@ class SmokeHarness:
         started = time.perf_counter()
         response = self.agent_client.evaluate_case(case)
         duration = time.perf_counter() - started
+        if response.observed == "UNEXECUTED":
+            status = "SKIPPED"
+        elif response.observed == case["expected"]:
+            status = "MATCH"
+        else:
+            status = "MISMATCH"
         return CaseResult(
             case_id=case["case_id"],
             category=case["category"],
             expected=case["expected"],
             observed=response.observed,
             duration_s=duration,
-            status="SKIPPED" if response.observed == "UNEXECUTED" else "OK",
+            status=status,
+            raw=response.raw,
         )
 
     def _resolve_git_commit(self) -> Optional[str]:
