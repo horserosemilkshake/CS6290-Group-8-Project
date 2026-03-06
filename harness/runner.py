@@ -52,6 +52,7 @@ class SmokeHarness:
         suite_path: Path,
         owner_id: str = "owner-000",
         seed: int = 6290,
+        defense_profile: str = "bare",
     ) -> Dict[str, Any]:
         run_start_ms = int(time.time() * 1000)
         cases = self._load_cases(suite_path)
@@ -84,6 +85,7 @@ class SmokeHarness:
             "run": run_record.to_dict(),
             "meta": {
                 "seed": seed,
+                "defense_profile": defense_profile,
                 "suite_sha256": suite_sha256,
                 "git_commit": git_commit,
                 "python_version": sys.version.split(" ")[0],
@@ -99,7 +101,7 @@ class SmokeHarness:
             run_id=run_id,
             testcase_id="run-summary",
             suite=suite_path.stem,
-            defense_profile="bare",
+            defense_profile=defense_profile,
             component="harness",
             type="run_summary",
             payload=report,

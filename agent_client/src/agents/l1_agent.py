@@ -3,6 +3,7 @@ L1 Agent main logic: Coordinate the entire workflow
 Follows least privilege principle, segregates trusted/untrusted contexts
 """
 import asyncio
+import os
 import re
 import uuid
 from datetime import datetime
@@ -17,6 +18,28 @@ from ..llm.llm_planner import llm_planner # type: ignore
 from ..tools.tool_coordinator import tool_coordinator
 from ..config.settings import settings
 from policy_engine.engine import evaluate_policy
+
+
+# ==========================================================================
+# Defense configuration: "bare" | "l1" | "l1l2"
+#   bare  — Config0: no guardrails at all (baseline)
+#   l1    — Config1: L1 input/output guardrails only
+#   l1l2  — Config2: L1 + L2 policy engine (default, full defense)
+# ==========================================================================
+_defense_config: str = os.environ.get("DEFENSE_CONFIG", "l1l2")
+
+
+def get_defense_config() -> str:
+    return _defense_config
+
+
+def set_defense_config(config: str) -> None:
+    global _defense_config
+    valid = ("bare", "l1", "l1l2")
+    if config not in valid:
+        raise ValueError(f"Invalid defense config '{config}', must be one of {valid}")
+    _defense_config = config
+    logger.info(f"[Config] Defense config set to: {config}")
 
 
 # ==============================================================================
@@ -196,77 +219,82 @@ class L1Agent:
 
     async def process_request(self, request: PlanRequest) -> PlanResponse:
         """
-        Main entry point for processing user requests
-        
-        Privacy protection:
-        - Does not require user to provide wallet address or balance
-        - Does not leak transaction history
-        - Does not publish TX hash
+        Main entry point for processing user requests.
+        Behavior depends on _defense_config:
+          bare  — skip L1 + L2 (Config0 baseline)
+          l1    — L1 only, skip L2 (Config1)
+          l1l2  — full defense (Config2, default)
         """
         request_id = request.request_id
-        logger.info(f"[Agent] Processing request {request_id}")
-        
+        config = _defense_config
+        logger.info(f"[Agent] Processing request {request_id} (defense={config})")
+
+        enable_l1 = config in ("l1", "l1l2")
+        enable_l2 = config == "l1l2"
+        metadata: Dict[str, Any] = {"untrusted_flags": [], "risk_level": "low"}
+
         try:
             # ========== Step 1: L1 Pre-guardrail - Input validation ==========
-            is_valid, error_msg, metadata = input_guardrail.validate_input(
-                request.user_message, 
-                request.session_id
-            )
-            
-            if not is_valid:
-                logger.warning(f"[L1] Input rejected: {error_msg}, flags: {metadata.get('untrusted_flags')}")
-                return self._refusal_response(
-                    request_id, 
-                    "INPUT_REJECTED", 
-                    error_msg or "Input validation failed",
-                    metadata
+            if enable_l1:
+                is_valid, error_msg, metadata = input_guardrail.validate_input(
+                    request.user_message,
+                    request.session_id
                 )
-            
-            # If encoded content detected, mark as untrusted
-            if metadata.get("risk_level") in ["medium", "high"]:
-                logger.warning(f"[L1] Untrusted content detected: {metadata['untrusted_flags']}")
-                # Continue processing but spotlight in logs
-                metadata["requires_spotlight"] = True
-            
-            # Sanitize input
-            sanitized_message = input_guardrail.sanitize_input(request.user_message)
-            
+
+                if not is_valid:
+                    logger.warning(f"[L1] Input rejected: {error_msg}, flags: {metadata.get('untrusted_flags')}")
+                    return self._refusal_response(
+                        request_id,
+                        "INPUT_REJECTED",
+                        error_msg or "Input validation failed",
+                        metadata
+                    )
+
+                if metadata.get("risk_level") in ["medium", "high"]:
+                    logger.warning(f"[L1] Untrusted content detected: {metadata['untrusted_flags']}")
+                    metadata["requires_spotlight"] = True
+
+                sanitized_message = input_guardrail.sanitize_input(request.user_message)
+            else:
+                sanitized_message = request.user_message
+
             # ========== Step 2: LLM Planner - Parse intent ==========
-            # parse_intent returns a SwapIntent object directly
             swap_intent: SwapIntent = await llm_planner.parse_intent(sanitized_message)
 
             # ========== Step 3: L1 Post-guardrail - Validate LLM output ==========
-            # Validate by converting SwapIntent to dict for the guardrail check
-            intent_dict = {
-                "intent": swap_intent.dict(),
-                "reasoning": "parsed by LLM"
-            }
-            is_valid, error_msg = output_guardrail.validate_llm_output(intent_dict)
-            if not is_valid:
-                logger.error(f"[L1] LLM output validation failed: {error_msg}")
-                return self._error_response(request_id, "OUTPUT_VALIDATION_FAILED", error_msg or "Unknown validation error")
-            
+            if enable_l1:
+                intent_dict = {
+                    "intent": swap_intent.dict(),
+                    "reasoning": "parsed by LLM"
+                }
+                is_valid, error_msg = output_guardrail.validate_llm_output(intent_dict)
+                if not is_valid:
+                    logger.error(f"[L1] LLM output validation failed: {error_msg}")
+                    return self._error_response(request_id, "OUTPUT_VALIDATION_FAILED", error_msg or "Unknown validation error")
+
             # ========== Step 4: Tool Coordinator - Get DEX quotes ==========
-            # Safely get user_address from parameters, which might be None
-            user_addr = "0x...user_wallet_address..."  # Default placeholder
+            user_addr = "0x...user_wallet_address..."
             if request.parameters:
                 user_addr = request.parameters.get("user_address", user_addr)
             swap_intent.user_address = user_addr
 
             tool_response = await tool_coordinator(swap_intent)
-            
+
             if not tool_response or not tool_response.quote:
                 return self._error_response(request_id, "TOOL_ERROR", "Failed to get quotes")
-            
-            # Validate best quote
+
             best_quote = tool_response.quote
-            is_valid, error_msg = output_guardrail.validate_quote(best_quote.dict())
-            if not is_valid:
-                return self._error_response(request_id, "QUOTE_VALIDATION_FAILED", error_msg or "Quote validation failed")
-            
+            if enable_l1:
+                is_valid, error_msg = output_guardrail.validate_quote(best_quote.dict())
+                if not is_valid:
+                    return self._error_response(request_id, "QUOTE_VALIDATION_FAILED", error_msg or "Quote validation failed")
+
             # ========== Step 5: L2 Policy Engine - Deterministic policy check ==========
-            policy_response = evaluate_policy(swap_intent, tool_response)
-            
+            if enable_l2:
+                policy_response = evaluate_policy(swap_intent, tool_response)
+            else:
+                policy_response = {"decision": "ALLOW", "violations": [], "checked_at": None}
+
             # ========== Step 6: Policy decision handling ==========
             if policy_response.get("decision") == "BLOCK":
                 violations = policy_response.get("violations", [])
