@@ -139,7 +139,7 @@ class LLMPlanner:
             "WBTC": 8,
             "WETH": 18,
             "ETH": 18,
-            "DAI": 6
+            "DAI": 18,  # DAI uses 18 decimals (same as ETH)
         }
 
         # Try to extract amount and tokens from message

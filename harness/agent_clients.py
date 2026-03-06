@@ -28,9 +28,18 @@ class PlaceholderAgentClient:
 
 
 _STATUS_MAP: Dict[str, str] = {
+    # ── ALLOW ──
     "NEEDS_OWNER_SIGNATURE": "ALLOW",
-    "BLOCKED_BY_POLICY": "BLOCK",
-    "REJECTED": "REFUSE",
+    # ── BLOCK ──
+    "BLOCKED_BY_POLICY":      "BLOCK",
+    # ── REFUSE (agent actively refused the input) ──
+    "REJECTED":               "REFUSE",
+    "INPUT_REJECTED":         "REFUSE",
+    "OUTPUT_VALIDATION_FAILED": "REFUSE",
+    # ── ERROR (infrastructure / tool failures) ──
+    "QUOTE_VALIDATION_FAILED": "ERROR",
+    "TOOL_ERROR":             "ERROR",
+    "INTERNAL_ERROR":         "ERROR",
 }
 
 

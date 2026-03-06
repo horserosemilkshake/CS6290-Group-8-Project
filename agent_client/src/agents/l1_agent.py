@@ -127,13 +127,17 @@ class InputGuardrail:
     
     def sanitize_input(self, user_message: str) -> str:
         """
-        Sanitize input, remove untrusted content
-        Preserve original intent but remove potential injection code
+        Sanitize input, remove untrusted content.
+        Preserves DeFi-relevant characters (digits, dots, token symbols,
+        hyphens, colons, slashes, parentheses) while stripping HTML and
+        dangerous control sequences.
         """
         # Remove HTML tags
         sanitized = re.sub(r'<[^>]+>', '', user_message)
-        # Remove special characters
-        sanitized = re.sub(r'[^\w\s\.\,\!\?]', '', sanitized)
+        # Strip characters that are never needed in a swap request but
+        # keep those commonly used in amounts, token names, and natural
+        # language punctuation:  .,!?-:;/()@#%  plus unicode letters/digits
+        sanitized = re.sub(r'[^\w\s\.\,\!\?\-\:\;\/\(\)\@\#\%]', '', sanitized)
         return sanitized.strip()
 
 
@@ -415,16 +419,23 @@ class L1Agent:
     
     def _create_summary(self, intent: SwapIntent, quote: "QuoteResponse") -> str:
         """Create transaction summary (no sensitive information)"""
-        sell_amount = self._format_amount(intent.sell_amount)
-        buy_amount = self._format_amount(quote.to_token_amount)
+        sell_amount = self._format_amount(intent.sell_amount, intent.sell_token)
+        buy_amount = self._format_amount(quote.to_token_amount, intent.buy_token)
         return f"Swap {sell_amount} {intent.sell_token} for ≈{buy_amount} {intent.buy_token}"
     
-    def _format_amount(self, amount_str: str) -> str:
-        """Format amount for display"""
+    # Token decimals for display formatting
+    _TOKEN_DECIMALS = {
+        "ETH": 18, "WETH": 18, "DAI": 18,
+        "USDC": 6, "USDT": 6, "WBTC": 8,
+    }
+
+    def _format_amount(self, amount_str: str, token: str = "") -> str:
+        """Format amount for display using the correct token decimals."""
         try:
-            amount = int(amount_str) / 10**18
+            decimals = self._TOKEN_DECIMALS.get(token.upper(), 18)
+            amount = int(amount_str) / 10 ** decimals
             return f"{amount:.4f}"
-        except:
+        except Exception:
             return amount_str
     
     def _get_token_symbol(self, address: str) -> str:
