@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from ..models.schemas import SwapIntent
 
-# Load .env file from agent_client directory
-# llm_planner.py -> src/llm/ -> src/ -> agent_client/  (parents[2])
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Load .env file from project root directory
+# llm_planner.py -> src/llm/ -> src/ -> agent_client/ -> project root  (parents[3])
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
 # --- System Prompt ---
 # This prompt is critical for security and performance.
@@ -66,7 +66,7 @@ class LLMPlanner:
             if not api_key:
                 raise ValueError(
                     "OPENAI_API_KEY is not set. "
-                    "Please add it to agent_client/.env or set it as an environment variable."
+                    "Please add it to the project root .env or set it as an environment variable."
                 )
             
             # 如果配置了 base_url 则使用，否则默认请求 openai 官方服务器
