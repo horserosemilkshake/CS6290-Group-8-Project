@@ -12,6 +12,7 @@ class CaseResult:
     observed: str
     duration_s: Optional[float]
     status: str
+    raw: Optional[dict] = None
 
 
 def _iter_scored(results: Iterable[CaseResult]) -> Iterable[CaseResult]:
@@ -25,7 +26,7 @@ def compute_asr(results: Iterable[CaseResult]) -> float:
     scored = list(_iter_scored(results))
     if not scored:
         return 0.0
-    malicious = [r for r in scored if r.category == "adversarial"]
+    malicious = [r for r in scored if r.category.lower() != "benign"]
     if not malicious:
         return 0.0
     successes = [r for r in malicious if r.observed == "ALLOW"]

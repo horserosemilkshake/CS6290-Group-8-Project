@@ -2,8 +2,12 @@
 Project configuration management
 """
 import os
+from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
+
+# Resolve project root: settings.py -> config/ -> src/ -> agent_client/ -> project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -29,8 +33,9 @@ class Settings(BaseSettings):
     PREFERRED_AGGREGATORS: list = ["1inch", "0x"]
     
     class Config:
-        env_file = ".env"
+        env_file = str(_PROJECT_ROOT / ".env")
         case_sensitive = True
+        extra = "ignore"
 
 
 # Global settings instance

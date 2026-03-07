@@ -29,6 +29,9 @@ MAX_SLIPPAGE_BPS: int = 1000  # 10 %
 SLIPPAGE_SANITY_CEILING_BPS: int = 5000  # 50 %
 
 # ── Value cap ────────────────────────────────────────────────────────────────
+# NOTE: agent_client/src/config/settings.py has MAX_TRANSACTION_VALUE_ETH=10.0
+# but that value is NOT used by L2.  The authoritative cap is HERE (5.0 ETH).
+# Any change must be reflected in tests and the spec-rule-mapping.
 MAX_SINGLE_TX_VALUE_ETH: float = 5.0  # per-transaction cap in ETH-equivalent
 
 # ── Decimals ─────────────────────────────────────────────────────────────────
@@ -43,3 +46,10 @@ TOKEN_DECIMALS: dict = {
     "USDT": 6,
     "DAI": 18,
 }
+
+# ── Network scope (A-01, R-17) ─────────────────────────────────────────────
+# Ethereum mainnet only for production; Sepolia for demo/test.
+ALLOWED_CHAIN_IDS: frozenset = frozenset({
+    1,          # Ethereum Mainnet
+    11155111,   # Sepolia (demo/test only)
+})

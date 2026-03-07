@@ -28,9 +28,18 @@ class PlaceholderAgentClient:
 
 
 _STATUS_MAP: Dict[str, str] = {
+    # ── ALLOW ──
     "NEEDS_OWNER_SIGNATURE": "ALLOW",
-    "BLOCKED_BY_POLICY": "BLOCK",
-    "REJECTED": "REFUSE",
+    # ── BLOCK ──
+    "BLOCKED_BY_POLICY":      "BLOCK",
+    # ── REFUSE (agent actively refused the input) ──
+    "REJECTED":               "REFUSE",
+    "INPUT_REJECTED":         "REFUSE",
+    "OUTPUT_VALIDATION_FAILED": "REFUSE",
+    # ── ERROR (infrastructure / tool failures) ──
+    "QUOTE_VALIDATION_FAILED": "ERROR",
+    "TOOL_ERROR":             "ERROR",
+    "INTERNAL_ERROR":         "ERROR",
 }
 
 
@@ -38,8 +47,10 @@ class FastAPIAgentClient:
     """Calls the Role-C FastAPI agent backend via HTTP."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: float = 30.0) -> None:
+        self.base_url = base_url
         self.plan_url = f"{base_url}/v0/agent/plan"
         self.health_url = f"{base_url}/v0/health"
+        self.config_url = f"{base_url}/v0/defense-config"
         self.timeout = timeout
 
     def health_check(self) -> bool:
@@ -48,6 +59,17 @@ class FastAPIAgentClient:
             return resp.status_code == 200
         except requests.ConnectionError:
             return False
+
+    def set_defense_config(self, config: str) -> str:
+        """Switch server defense config (bare/l1/l1l2). Returns active config."""
+        resp = requests.post(self.config_url, json={"config": config}, timeout=5)
+        resp.raise_for_status()
+        return resp.json()["defense_config"]
+
+    def get_defense_config(self) -> str:
+        resp = requests.get(self.config_url, timeout=5)
+        resp.raise_for_status()
+        return resp.json()["defense_config"]
 
     def evaluate_case(self, case: Dict[str, Any]) -> AgentResponse:
         payload = {
