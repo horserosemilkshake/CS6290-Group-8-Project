@@ -316,7 +316,7 @@ class L1Agent:
                 chain_id=swap_intent.chain_id,
                 to=best_quote.tx.to,
                 data=best_quote.tx.data,
-                value=swap_intent.sell_amount,
+                value=best_quote.tx.value,
                 gas=best_quote.estimated_gas,
                 nonce=None
             )
