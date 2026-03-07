@@ -384,28 +384,6 @@ class L1Agent:
             }
         )
     
-    def _blocked_response(
-        self, 
-        request_id: str, 
-        policy_response,
-        metadata: Dict[str, Any]
-    ) -> PlanResponse:
-        """Construct policy blocked response"""
-        violation = policy_response.violations[0] if policy_response.violations else {}
-        return PlanResponse(
-            request_id=request_id,
-            status="BLOCKED_BY_POLICY",
-            tx_plan=None,
-            error={
-                "code": f"POLICY_VIOLATION_{violation.get('rule_id', 'UNKNOWN').upper()}",
-                "message": f"Request blocked by policy. {violation.get('description', 'Policy violation')}",
-                "details": {
-                    "violations": policy_response.violations,
-                    "risk_metadata": metadata
-                }
-            }
-        )
-    
     def _sanitize_quote(self, quote: Dict[str, Any]) -> Dict[str, Any]:
         """
         Sanitize quote data
