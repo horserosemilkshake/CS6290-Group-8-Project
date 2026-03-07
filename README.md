@@ -1,5 +1,7 @@
 # CS6290 Group 8 — Adversarially-Robust DeFi Swap Agent
 
+**Last Updated:** March 6, 2026
+
 An AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, hardened with layered guardrails against prompt injection, excessive agency, and economic attacks.
 
 ## Architecture
