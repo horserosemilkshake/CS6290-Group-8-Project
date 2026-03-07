@@ -83,7 +83,7 @@ def _redact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         elif isinstance(value, list):
             redacted[key] = [
                 _redact_payload(item) if isinstance(item, dict)
-                else (TX_HASH_RE.sub("<REDACTED_TX_HASH>", WALLET_ADDRESS_RE.sub("<REDACTED_ADDRESS>", item))
+                else (WALLET_ADDRESS_RE.sub("<REDACTED_ADDRESS>", TX_HASH_RE.sub("<REDACTED_TX_HASH>", item))
                       if isinstance(item, str) else item)
                 for item in value
             ]
