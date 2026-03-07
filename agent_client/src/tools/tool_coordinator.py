@@ -12,13 +12,14 @@ async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, floa
     """
     Simulates fetching the current market price of tokens.
     In a real implementation, this would call CoinGecko, Binance, etc.
+    Prices are sourced from the same _MOCK_PRICES_USD table used by
+    get_swap_quote so that R-03 slippage evaluation is consistent.
     """
     print(f"INFO: [Tool] Fetching market snapshot for {sell_token} and {buy_token}...")
-    # Returning fixed mock prices for simplicity
-    await asyncio.sleep(0.1) # Simulate network latency
+    await asyncio.sleep(0.1)  # Simulate network latency
     return {
-        sell_token: 2800.50,  # Mock price for WETH
-        buy_token: 0.99,   # Mock price for USDC
+        sell_token: _MOCK_PRICES_USD.get(sell_token.upper(), 1.0),
+        buy_token: _MOCK_PRICES_USD.get(buy_token.upper(), 1.0),
     }
 
 # Mock function to simulate getting a quote from a DEX aggregator like 1inch
@@ -66,6 +67,11 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
     buy_human = sell_human * sell_price / buy_price if buy_price else 0.0
     mock_to_amount = int(buy_human * (10 ** buy_decimals))
 
+    # For native-asset sells (ETH/WETH) the router call must carry the sell
+    # amount as msg.value; for ERC-20 sells it should be "0".
+    native_tokens = {"ETH", "WETH"}
+    tx_value = intent.sell_amount if intent.sell_token.upper() in native_tokens else "0"
+
     mock_quote = {
         "to_token_amount": str(mock_to_amount),
         "gas_price_gwei": "50",
@@ -74,7 +80,7 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
             "from": intent.user_address,
             "to": "0x1111111254fb6c44bac0bed2854e76f90643097d",  # 1inch v5 Router
             "data": "0xdeadbeef...",  # Mock transaction data payload
-            "value": "0",
+            "value": tx_value,
         },
     }
 
