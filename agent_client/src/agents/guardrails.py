@@ -5,7 +5,6 @@ L1 is the first line of defense, operating entirely outside the agent's reasonin
 import re
 from typing import Tuple, Optional, Dict, Any, List
 from ..utils.logger import logger
-from ..config.settings import settings
 
 
 class InputGuardrail:

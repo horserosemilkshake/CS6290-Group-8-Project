@@ -2,21 +2,18 @@
 L1 Agent main logic: Coordinate the entire workflow
 Follows least privilege principle, segregates trusted/untrusted contexts
 """
-import asyncio
 import os
 import re
 import uuid
-from datetime import datetime
 from typing import Dict, Any, Tuple, Optional
 
 from ..utils.logger import logger
 from ..models.schemas import (
     PlanRequest, PlanResponse, TxPlan, UnsignedTransaction,
-    PolicyLog, SwapIntent, QuoteRequest, PolicyRequest, ToolResponse, QuoteResponse
+    SwapIntent, QuoteResponse
 )
 from ..llm.llm_planner import llm_planner # type: ignore
 from ..tools.tool_coordinator import tool_coordinator
-from ..config.settings import settings
 from policy_engine.engine import evaluate_policy
 
 
