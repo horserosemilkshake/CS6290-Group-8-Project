@@ -22,36 +22,62 @@ async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, floa
     }
 
 # Mock function to simulate getting a quote from a DEX aggregator like 1inch
+_TOKEN_DECIMALS: dict = {
+    "ETH": 18,
+    "WETH": 18,
+    "DAI": 18,
+    "USDC": 6,
+    "USDT": 6,
+    "WBTC": 8,
+}
+
+_MOCK_PRICES_USD: dict = {
+    "ETH": 2800.0,
+    "WETH": 2800.0,
+    "USDC": 1.0,
+    "USDT": 1.0,
+    "DAI": 1.0,
+    "WBTC": 60000.0,
+}
+
+
 async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
     """
     Simulates fetching a swap quote from a DEX aggregator API (e.g., 1inch).
     This mock version returns a pre-defined, structured quote.
     """
     print(f"INFO: [Tool] Getting swap quote for {intent.sell_amount} of {intent.sell_token} -> {intent.buy_token}...")
-    
+
     # In a real implementation, you would construct a URL and make an HTTP request
     # to an aggregator's API endpoint with the intent's parameters.
     # Example: https://api.1inch.io/v5.0/1/quote?fromTokenAddress=...&toTokenAddress=...&amount=...
 
-    await asyncio.sleep(0.2) # Simulate network latency
+    await asyncio.sleep(0.2)  # Simulate network latency
 
-    # This is a mock response that mimics the structure of a real 1inch quote.
-    # We need to convert sell_amount from wei string to a number for mock calculation
-    sell_amount_in_ether = int(intent.sell_amount) / 1e18
-    mock_to_amount = sell_amount_in_ether * 2800 # Mock conversion WETH -> USDC
-    
+    # Convert sell_amount using the correct decimals for the sell token (not always 18).
+    sell_decimals = _TOKEN_DECIMALS.get(intent.sell_token.upper(), 18)
+    sell_human = int(intent.sell_amount) / (10 ** sell_decimals)
+
+    # Derive mock buy amount via USD price ratio, then convert to buy token raw units.
+    sell_price = _MOCK_PRICES_USD.get(intent.sell_token.upper(), 1.0)
+    buy_price = _MOCK_PRICES_USD.get(intent.buy_token.upper(), 1.0)
+    buy_decimals = _TOKEN_DECIMALS.get(intent.buy_token.upper(), 18)
+
+    buy_human = sell_human * sell_price / buy_price if buy_price else 0.0
+    mock_to_amount = int(buy_human * (10 ** buy_decimals))
+
     mock_quote = {
-        "to_token_amount": str(int(mock_to_amount * 1e6)), # Assuming USDC has 6 decimals
+        "to_token_amount": str(mock_to_amount),
         "gas_price_gwei": "50",
         "estimated_gas": "300000",
         "tx": {
             "from": intent.user_address,
-            "to": "0x1111111254fb6c44bac0bed2854e76f90643097d", # 1inch v5 Router
-            "data": "0xdeadbeef...", # Mock transaction data payload
+            "to": "0x1111111254fb6c44bac0bed2854e76f90643097d",  # 1inch v5 Router
+            "data": "0xdeadbeef...",  # Mock transaction data payload
             "value": "0",
-        }
+        },
     }
-    
+
     return QuoteResponse(**mock_quote)
 
 async def tool_coordinator(intent: SwapIntent) -> ToolResponse:
