@@ -28,9 +28,11 @@ class InputGuardrail:
     
     # Indirect/Encoded Injection patterns
     ENCODED_PATTERNS = [
-        r"base64|rot13|hex|unicode",  # Encoding hints
-        r"\\x[0-9a-f]{2}",  # Hex encoding
-        r"&#\d+;",  # HTML entity encoding
+        r"\b(base64|rot13|unicode)\b",  # Encoding scheme keywords (word-bounded)
+        # "hex" is intentionally excluded: it is a legitimate ERC-20 token symbol
+        # and matching it bare caused false positives on "swap 1 ETH for HEX".
+        r"\\x[0-9a-f]{2}",  # Hex escape sequences  e.g. \x41
+        r"&#\d+;",  # HTML entity encoding  e.g. &#65;
     ]
     
     def validate_input(self, user_message: str, session_id: str) -> Tuple[bool, Optional[str], Dict[str, Any]]:
