@@ -1,6 +1,6 @@
 # CS6290 Group 8 — Adversarially-Robust DeFi Swap Agent
 
-**Last Updated:** March 6, 2026
+**Last Updated:** March 8, 2026
 
 An AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, hardened with layered guardrails against prompt injection, excessive agency, and economic attacks.
 
@@ -31,9 +31,9 @@ User ─► Telegram Bot ─► FastAPI Agent API ─► L1 Guardrails ─► LL
 
 | Config | ASR ↓ | FP | TR (max) |
 |--------|-------|----|----------|
-| bare | 69 % | 0 % | 3.89 s |
-| l1 | 28 % | 0 % | 3.79 s |
-| l1l2 | 17 % | 0 % | 3.88 s |
+| bare | 75 % | 0 % | 3.86 s |
+| l1 | 25 % | 0 % | 3.37 s |
+| l1l2 | 14 % | 0 % | 3.69 s |
 
 ## Quick Start
 
