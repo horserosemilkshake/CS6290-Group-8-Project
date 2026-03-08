@@ -1,0 +1,25 @@
+[project]
+name = "cs6290-group-8-project"
+version = "0.1.0"
+description = "CS6290 Group 8 DeFi Agent Project"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+    "requests>=2.28",
+    "httpx>=0.27",
+    "python-telegram-bot>=20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]

@@ -2,10 +2,9 @@
 Tool Coordinator: Call external tools to get market data and quotes
 This module reserves interfaces, waiting for implementation after investigating trading platforms
 """
-from typing import Dict, Any, Optional
-from ..utils.logger import logger
-from ..models.schemas import QuoteRequest, QuoteResponse, Quote, SwapIntent, ToolResponse
 import asyncio
+from typing import Dict
+from ..models.schemas import QuoteResponse, SwapIntent, ToolResponse
 
 # Mock function to simulate fetching token prices from an external API like CoinGecko
 async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, float]:
@@ -67,9 +66,10 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
     buy_human = sell_human * sell_price / buy_price if buy_price else 0.0
     mock_to_amount = int(buy_human * (10 ** buy_decimals))
 
-    # For native-asset sells (ETH/WETH) the router call must carry the sell
-    # amount as msg.value; for ERC-20 sells it should be "0".
-    native_tokens = {"ETH", "WETH"}
+    # For native-asset sells (ETH only) the router call must carry the sell
+    # amount as msg.value; for ERC-20 sells (including WETH) it should be "0".
+    # WETH is a wrapped ERC-20 contract — routers reject unexpected msg.value.
+    native_tokens = {"ETH"}
     tx_value = intent.sell_amount if intent.sell_token.upper() in native_tokens else "0"
 
     mock_quote = {

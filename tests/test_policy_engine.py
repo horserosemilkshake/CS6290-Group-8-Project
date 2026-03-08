@@ -158,6 +158,40 @@ def test_r03_negative_slippage_skips():
     assert v is None
 
 
+def test_r03_non_18_decimal_sell_within_limit():
+    """100 USDC (6-decimal sell) → ~0.035 ETH; slippage ≈ 1 % → pass.
+
+    Regression: check_slippage must use TOKEN_DECIMALS for the sell token,
+    not assume 18 decimals. A 100 USDC sell is 100 * 10**6 raw units.
+    If 18 decimals were assumed the sell_human would be ~1e-10 and
+    slippage would be computed incorrectly.
+    """
+    v = check_slippage(
+        "USDC", "ETH",
+        str(100 * 10**6),        # 100 USDC raw (6-decimal)
+        str(int(0.035 * 10**18)), # ≈ 0.035 ETH raw (18-decimal)
+        {"USDC": 1.0, "ETH": 2800.0},
+    )
+    assert v is None
+
+
+def test_r03_non_18_decimal_sell_exceeds_limit():
+    """100 USDC (6-decimal sell) → only 0.025 ETH received; slippage ~30 % → block.
+
+    0.025 ETH ≈ 70 USD for 100 USDC worth of value → 30 % slippage.
+    30 % is above MAX_SLIPPAGE_BPS (10 %) but below SLIPPAGE_SANITY_CEILING_BPS
+    (50 %), so R-03 should fire instead of being swallowed by the sanity guard.
+    """
+    v = check_slippage(
+        "USDC", "ETH",
+        str(100 * 10**6),          # 100 USDC raw (6-decimal)
+        str(int(0.025 * 10**18)),  # 0.025 ETH ≈ 70 USD — ~30 % slippage
+        {"USDC": 1.0, "ETH": 2800.0},
+    )
+    assert v is not None
+    assert v.rule_id == "R-03"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  R-04  Value cap
 # ═══════════════════════════════════════════════════════════════════════════════

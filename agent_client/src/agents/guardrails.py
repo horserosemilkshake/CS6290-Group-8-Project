@@ -3,7 +3,7 @@ L1 Guardrails: Input preprocessing and output validation
 L1 is the first line of defense, operating entirely outside the agent's reasoning
 """
 import re
-from typing import Tuple, Optional, Dict, Any, List
+from typing import Tuple, Optional, Dict, Any
 from ..utils.logger import logger
 
 
