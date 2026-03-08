@@ -5,7 +5,6 @@ L1 is the first line of defense, operating entirely outside the agent's reasonin
 import re
 from typing import Tuple, Optional, Dict, Any, List
 from ..utils.logger import logger
-from ..config.settings import settings
 
 
 class InputGuardrail:
@@ -28,9 +27,11 @@ class InputGuardrail:
     
     # Indirect/Encoded Injection patterns
     ENCODED_PATTERNS = [
-        r"base64|rot13|hex|unicode",  # Encoding hints
-        r"\\x[0-9a-f]{2}",  # Hex encoding
-        r"&#\d+;",  # HTML entity encoding
+        r"\b(base64|rot13|unicode)\b",  # Encoding scheme keywords (word-bounded)
+        # "hex" is intentionally excluded: it is a legitimate ERC-20 token symbol
+        # and matching it bare caused false positives on "swap 1 ETH for HEX".
+        r"\\x[0-9a-f]{2}",  # Hex escape sequences  e.g. \x41
+        r"&#\d+;",  # HTML entity encoding  e.g. &#65;
     ]
     
     def validate_input(self, user_message: str, session_id: str) -> Tuple[bool, Optional[str], Dict[str, Any]]:
@@ -89,13 +90,17 @@ class InputGuardrail:
     
     def sanitize_input(self, user_message: str) -> str:
         """
-        Sanitize input, remove untrusted content
-        Preserve original intent but remove potential injection code
+        Sanitize input, remove untrusted content.
+        Preserves DeFi-relevant characters (digits, dots, token symbols,
+        hyphens, colons, slashes, parentheses) while stripping HTML and
+        dangerous control sequences.
         """
         # Remove HTML tags
         sanitized = re.sub(r'<[^>]+>', '', user_message)
-        # Remove special characters
-        sanitized = re.sub(r'[^\w\s\.\,\!\?]', '', sanitized)
+        # Strip characters that are never needed in a swap request but
+        # keep those commonly used in amounts, token names, and natural
+        # language punctuation:  .,!?-:;/()@#%  plus unicode letters/digits
+        sanitized = re.sub(r'[^\w\s\.\,\!\?\-\:\;\/\(\)\@\#\%]', '', sanitized)
         return sanitized.strip()
     
     def extract_key_info(self, user_message: str) -> Dict[str, Any]:
@@ -171,18 +176,17 @@ class OutputGuardrail:
         return False
     
     def validate_quote(self, quote: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-        """Validate basic compliance of quote data"""
-        # Basic field check
-        required = ["router_address", "buy_amount", "transaction_calldata_preview", "slippage_bps"]
+        """Validate basic compliance of quote data.
+
+        Required fields are aligned with the QuoteResponse schema:
+        to_token_amount, gas_price_gwei, estimated_gas, tx.
+        The old field names (router_address, buy_amount,
+        transaction_calldata_preview, slippage_bps) no longer exist in
+        QuoteResponse and caused every quote to be incorrectly rejected.
+        """
+        required = ["to_token_amount", "gas_price_gwei", "estimated_gas", "tx"]
         if not all(k in quote for k in required):
             return False, "Quote missing required fields"
-        
-        # Hard slippage check (L1 level fast-fail)
-        slippage_bps = quote.get("slippage_bps", 0)
-        if slippage_bps > settings.MAX_SLIPPAGE_BPS:
-            logger.warning(f"[L1] Quote slippage {slippage_bps} exceeds limit {settings.MAX_SLIPPAGE_BPS}")
-            return False, f"Slippage {slippage_bps} exceeds hard limit {settings.MAX_SLIPPAGE_BPS}"
-        
         return True, None
     
     def mark_untrusted_content(self, content: str, source: str) -> Dict[str, Any]:

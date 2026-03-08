@@ -93,7 +93,8 @@ def check_slippage(
         return None  # cannot evaluate; other rules still apply
 
     try:
-        sell_human = int(sell_amount_raw) / (10 ** cfg.AMOUNT_DECIMALS)
+        sell_decimals = cfg.TOKEN_DECIMALS.get(sell_token.upper(), cfg.AMOUNT_DECIMALS)
+        sell_human = int(sell_amount_raw) / (10 ** sell_decimals)
         buy_decimals = cfg.TOKEN_DECIMALS.get(buy_token.upper(), cfg.AMOUNT_DECIMALS)
         buy_human = int(buy_amount_raw) / (10 ** buy_decimals)
     except (ValueError, TypeError):

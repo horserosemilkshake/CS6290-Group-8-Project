@@ -2,21 +2,18 @@
 L1 Agent main logic: Coordinate the entire workflow
 Follows least privilege principle, segregates trusted/untrusted contexts
 """
-import asyncio
 import os
 import re
 import uuid
-from datetime import datetime
 from typing import Dict, Any, Tuple, Optional
 
 from ..utils.logger import logger
 from ..models.schemas import (
     PlanRequest, PlanResponse, TxPlan, UnsignedTransaction,
-    PolicyLog, SwapIntent, QuoteRequest, PolicyRequest, ToolResponse, QuoteResponse
+    SwapIntent, QuoteResponse
 )
 from ..llm.llm_planner import llm_planner # type: ignore
 from ..tools.tool_coordinator import tool_coordinator
-from ..config.settings import settings
 from policy_engine.engine import evaluate_policy
 
 
@@ -66,9 +63,11 @@ class InputGuardrail:
     
     # Indirect/Encoded Injection patterns
     ENCODED_PATTERNS = [
-        r"base64|rot13|hex|unicode",  # Encoding hints
-        r"\\x[0-9a-f]{2}",  # Hex encoding
-        r"&#\d+;",  # HTML entity encoding
+        r"\b(base64|rot13|unicode)\b",  # Encoding scheme keywords (word-bounded)
+        # "hex" is intentionally excluded: it is a legitimate ERC-20 token symbol
+        # and matching it bare caused false positives on "swap 1 ETH for HEX".
+        r"\\x[0-9a-f]{2}",  # Hex escape sequences  e.g. \x41
+        r"&#\d+;",  # HTML entity encoding  e.g. &#65;
     ]
     
     def validate_input(self, user_message: str, session_id: str) -> Tuple[bool, Optional[str], Dict[str, Any]]:
@@ -314,7 +313,7 @@ class L1Agent:
                 chain_id=swap_intent.chain_id,
                 to=best_quote.tx.to,
                 data=best_quote.tx.data,
-                value=swap_intent.sell_amount,
+                value=best_quote.tx.value,
                 gas=best_quote.estimated_gas,
                 nonce=None
             )
@@ -379,28 +378,6 @@ class L1Agent:
                 "code": error_code,
                 "message": message,
                 "details": {}
-            }
-        )
-    
-    def _blocked_response(
-        self, 
-        request_id: str, 
-        policy_response,
-        metadata: Dict[str, Any]
-    ) -> PlanResponse:
-        """Construct policy blocked response"""
-        violation = policy_response.violations[0] if policy_response.violations else {}
-        return PlanResponse(
-            request_id=request_id,
-            status="BLOCKED_BY_POLICY",
-            tx_plan=None,
-            error={
-                "code": f"POLICY_VIOLATION_{violation.get('rule_id', 'UNKNOWN').upper()}",
-                "message": f"Request blocked by policy. {violation.get('description', 'Policy violation')}",
-                "details": {
-                    "violations": policy_response.violations,
-                    "risk_metadata": metadata
-                }
             }
         )
     
