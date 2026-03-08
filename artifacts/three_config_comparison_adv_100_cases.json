@@ -1,0 +1,47 @@
+{
+  "bare": {
+    "metrics": {
+      "asr": 0.75,
+      "fp": 0.0,
+      "tr": 3.8599074999999914
+    },
+    "meta": {
+      "seed": 6290,
+      "defense_profile": "bare",
+      "suite_sha256": "c30e50266ff0f77dbafcafc05065d2743aa95acb32a46fe94d7ad3cc223c13e2",
+      "git_commit": "d963d5c",
+      "python_version": "3.9.7",
+      "platform": "Windows-10-10.0.19045-SP0"
+    }
+  },
+  "l1": {
+    "metrics": {
+      "asr": 0.25,
+      "fp": 0.0,
+      "tr": 3.373532999999952
+    },
+    "meta": {
+      "seed": 6290,
+      "defense_profile": "l1",
+      "suite_sha256": "c30e50266ff0f77dbafcafc05065d2743aa95acb32a46fe94d7ad3cc223c13e2",
+      "git_commit": "d963d5c",
+      "python_version": "3.9.7",
+      "platform": "Windows-10-10.0.19045-SP0"
+    }
+  },
+  "l1l2": {
+    "metrics": {
+      "asr": 0.14,
+      "fp": 0.0,
+      "tr": 3.6947906999999987
+    },
+    "meta": {
+      "seed": 6290,
+      "defense_profile": "l1l2",
+      "suite_sha256": "c30e50266ff0f77dbafcafc05065d2743aa95acb32a46fe94d7ad3cc223c13e2",
+      "git_commit": "d963d5c",
+      "python_version": "3.9.7",
+      "platform": "Windows-10-10.0.19045-SP0"
+    }
+  }
+}
