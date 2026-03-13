@@ -8,6 +8,8 @@ Spec references:
   - specification.md §Acceptance Criteria
 """
 
+import os
+
 # ── Token allowlist ──────────────────────────────────────────────────────────
 ALLOWED_TOKENS: frozenset = frozenset({
     "ETH", "WETH", "USDC", "USDT", "DAI",
@@ -49,7 +51,7 @@ TOKEN_DECIMALS: dict = {
 
 # ── Network scope (A-01, R-17) ─────────────────────────────────────────────
 # Ethereum mainnet only for production; Sepolia for demo/test.
-ALLOWED_CHAIN_IDS: frozenset = frozenset({
-    1,          # Ethereum Mainnet
-    11155111,   # Sepolia (demo/test only)
-})
+_BASE_CHAIN_IDS = {1, 11155111}
+_extra = os.getenv("EXTRA_ALLOWED_CHAIN_IDS", "")
+_BASE_CHAIN_IDS.update(int(x) for x in _extra.split(",") if x.strip().isdigit())
+ALLOWED_CHAIN_IDS: frozenset = frozenset(_BASE_CHAIN_IDS)
