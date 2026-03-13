@@ -1,20 +1,21 @@
 # CS6290 Group 8 — Adversarially-Robust DeFi Swap Agent
 
-**Last Updated:** March 8, 2026
+**Last Updated:** March 13, 2026
 
 An AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, hardened with layered guardrails against prompt injection, excessive agency, and economic attacks.
 
 ## Architecture
 
 ```
-User ─► Telegram Bot ─► FastAPI Agent API ─► L1 Guardrails ─► LLM Planner ─► Tool Coordinator ─► L2 Policy Engine ─► TxPlan
+User ─► Telegram Bot ─► FastAPI Agent API ─► L1 ─► LLM ─► Tool Coordinator ─► L2 Policy Engine ─► [L3 On-Chain] ─► TxPlan
 ```
 
 | Component | Location | Description |
 |-----------|----------|-------------|
 | **Agent API** | `agent_client/` | FastAPI server; LLM intent parsing (DeepSeek / OpenAI-compatible) with mock DEX tool coordinator |
 | **L1 Guardrails** | `agent_client/src/agents/` | Input sanitisation (injection detection, encoding attacks, length limits) + output validation |
-| **L2 Policy Engine** | `policy_engine/` | 7 deterministic rules: token allowlist, router allowlist, slippage, value cap, unlimited approval, tx structure, chain scope |
+| **L2 Policy Engine** | `policy_engine/` | Deterministic rules: token/router allowlist, slippage, value cap, unlimited approval, tx structure, chain scope |
+| **L3 On-Chain** | `contracts/` + `policy_engine/l3_validator.py` | SwapGuard contract (R-01, R-02, R-04) via `eth_call`; optional, requires Anvil |
 | **Telegram Bot** | `telegram_bot/` | Natural-language front-end; group-chat privacy (ALLOW details sent via owner DM only) |
 | **Test Harness** | `harness/` | Automated red-team runner with ASR / FP / TR metrics |
 | **Test Cases** | `testcases/` | 100 adversarial cases (`adv_100_cases.json`) covering injection, social engineering, encoding attacks, logic overrides |
@@ -26,6 +27,7 @@ User ─► Telegram Bot ─► FastAPI Agent API ─► L1 Guardrails ─► LL
 | Config 0 (bare) | `DEFENSE_CONFIG=bare` | None — baseline |
 | Config 1 (L1) | `DEFENSE_CONFIG=l1` | L1 input/output guardrails only |
 | Config 2 (L1+L2) | `DEFENSE_CONFIG=l1l2` | L1 + L2 policy engine (default) |
+| Config 3 (L1+L2+L3) | `DEFENSE_CONFIG=l1l2l3` | L1 + L2 + L3 on-chain (requires local Anvil + `SWAP_GUARD_ADDRESS`) |
 
 **Latest 100-case adversarial results:**
 
@@ -105,6 +107,18 @@ python scripts/run_integration_test.py testcases/adv_100_cases.json --all-config
 
 Results and artifacts are saved to `artifacts/`.
 
+### 7. Run with L3 on-chain (optional)
+
+To enable Config3 (L1+L2+L3): install [Foundry](https://getfoundry.sh), then from the project root:
+
+```bash
+./scripts/start-chain.sh local   # start Anvil, deploy SwapGuard, copy printed address
+# In .env: DEFENSE_CONFIG=l1l2l3, SWAP_GUARD_ADDRESS=<that address>
+python -m uvicorn agent_client.src.main:app --port 8000
+```
+
+See `contracts/README.md` for details.
+
 ## Project Structure
 
 ```
@@ -117,11 +131,12 @@ Results and artifacts are saved to `artifacts/`.
 │       ├── models/        # Pydantic schemas
 │       ├── tools/         # Tool coordinator (mock DEX quotes)
 │       └── utils/         # Logger
-├── policy_engine/         # L2 deterministic policy rules
+├── policy_engine/         # L2 policy rules + L3 validator (eth_call wrapper)
+├── contracts/             # L3 SwapGuard (Foundry: anvil, forge, cast)
 ├── telegram_bot/          # Telegram front-end
 ├── harness/               # Test harness + metrics (ASR/FP/TR)
 ├── testcases/             # Adversarial & benign test suites
-├── scripts/               # Integration test runners
+├── scripts/               # Integration test runners, start-chain.sh (local/fork)
 ├── tests/                 # Unit tests (pytest)
 ├── artifacts/             # Run results & artifacts
 ├── docs/                  # Spec, threat model, project management
