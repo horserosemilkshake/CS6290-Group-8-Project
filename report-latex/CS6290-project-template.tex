@@ -6,13 +6,15 @@
 \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
+\usepackage{float}
+\usepackage{multicol}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
 \title{Adversarially-Robust Minimal DeFi Agent For Cryptocurrency Swapping}
 
-\author{\IEEEauthorblockN{Biying FANG (ID:12341000)\IEEEauthorrefmark{1}, Yifan LI (ID:12341000)\IEEEauthorrefmark{1}, Mengmeng SU (ID:59669920)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
+\author{\IEEEauthorblockN{Biying FANG (ID:12341000)\IEEEauthorrefmark{1}, Yifan LI (ID:59669920)\IEEEauthorrefmark{1}, Mengmeng SU (ID:12341000)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
 \IEEEauthorblockA{\IEEEauthorrefmark{1}College of Computer Science\\
 City University of Hong Kong, Tat Chee Avenue, Kowloon, Hong Kong SAR\\
 Email: tszctsoi4-c@my.cityu.edu.hk} }
@@ -22,35 +24,106 @@ Email: tszctsoi4-c@my.cityu.edu.hk} }
 
 
 \section{Introduction}
-The user interfaces of Decentralized Finance (DeFi) are shifting from manually manipulating discrete transactions on‐chains to delegating these tasks to conversational agents and AI‑augmented intermediaries, ranging from wallet‑embedded copilots, Telegram‑based trading bots, to fully autonomous DeFi assistants. These systems convert natural‑language directives into executable blockchain operations, effectively inserting a probabilistic planning layer into what was a deterministic pipeline under user's control.
+The user interfaces of Decentralized Finance (DeFi) are shifting from manually executing on‐chain transactions to conversational AI agents, ranging from wallet‑embedded copilots, Telegram trading bots, to fully autonomous DeFi assistants. These systems translate natural‑language directives into executable blockchain operations, effectively inserting a probabilistic planning layer into what was a deterministic pipeline under user's control.
 
-The shift introduces a qualitatively distinct and insufficiently studied security boundary. In contrast to explicit and formally analyzable smart contracts, large language models (LLMs) exhibit stochasticity and are susceptible to various linguistic and contextual adversarial actions, including prompt injection, indirect influence attacks, contextual contamination, and social‑engineering‑driven specification drift. The threat is particularly apparent in open multi‑party communication environments such as Telegram or WhatsApp, where adversaries may directly interact with the same agent instance as the legitimate user, embedding payloads designed to subvert the transaction‑generation process.
+The shift introduces an unexamined security boundary. Unlike explicit and formally analyzable smart contracts, large language models (LLMs) exhibit stochasticity and are susceptible to various linguistic and contextual adversarial actions, including prompt injection, indirect influence attacks, contextual contamination, and social‑engineering‑driven specification drift. The threat is amplified in open multi‑party communication environments such as Telegram or WhatsApp, where adversaries may directly interact with the same agent instance as the legitimate user, embedding payloads designed to subvert the transaction‑generation process.
 
-Considering the irreversibility of blockchain transactions, compromised transaction plan or signing key can result in catastrophic and permanent asset loss. Still, while existing literature extensively investigates vulnerabilities in smart‑contract correctness, MEV extraction dynamics, oracle manipulation, and private‑key security, there exists a notable absence of empirical and systematic analysis addressing the security properties of LLM‑driven transaction‑planning pipelines under adversarial language conditions. The research aims to fill the said gaps at the intersection of natural‑language AI systems and decentralized financial infrastructure by implementing and testing a minimal prototype.
-
+While the existing literature extensively investigates vulnerabilities in smart‑contract correctness, MEV extraction dynamics, oracle manipulation, and private‑key security, there is little systematic analysis of the security properties of novel LLM‑driven transaction‑planning pipelines under adversarial language conditions. The research addresses the gaps by implementing and empirically evaluating a minimal, adversarially tested prototype at the intersection of AI agents and DeFi infrastructure.
 
 
 \section{Application Setting}
 
 \subsection{System Architecture}
-Guidelines: In this subsection, you should describe the general application setting of encrypted search, e.g., how many parties are there in the real application setting, the particular role of each party, and the participation of each party (i.e., what each party does in  the work flow).
+\subsubsection{Purpose and Scope}
+The system provides a conversation swap planning agent that converts natural-language-based user intents into a deterministic, unsigned transaction plan (\texttt{TxPlan}) for a DeFi swap while the agent never signs or broadcasts transactions. Security objectives are user fund safety, privacy, and policy adherence in adversarial environment (e.g., public chat channels and unsafe data sources). 
+
+\subsubsection{System Components Overview}
+The following provides an overview of components and their interactions.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=3.3in]{figure/component_diagram.png}
+  \caption{System Components Overview (zoom in for details)}
+  \label{fig_model}
+\end{figure}
+
+A legitimate user interacts with the system via a conversation request to a chat interface (typically a Telegram bot), calling the agent plan API. After the Layer 1 (L1) agent parses and sanitizes the request, it extracts a structured swap intent and retrieves market data. The Layer 2 (L2) policy engine verifies whether the request compiles with deterministic safety and \texttt{allowlist} rules, and returns an unsigned \texttt{TxPlan} marked with \texttt{NEEDS\_OWNER\_SIGNATURE} The user reviews the plan and, if satisfied, signs with their own private key.
+
+In this paper, L1 is the DeFi LLM agent. It is a probabilistic layer responsible for handling input security, filtering requests, and controlling tool invocations, thereby mitigating natural language attacks. Meanwhile, L2 is the policy engine. It is a strict and deterministic enforcement layer that blocks any rule-breaking actions by the LLM or user requests.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=2in]{figure/L2+L1.png}
+  \caption{The Relationship Between L1 and L2}
+  \label{fig_model}
+\end{figure}
+
+\subsubsection{Important Trust and Signer Boundary}
+\begin{itemize}
+    \item Invariant I1 (Non‑Custodial): No module can produce a signed transaction or trigger an on‑chain side effect.
+    \item Invariant I2 (Deterministic Governance): L2 policy decisions dominate LLM/tool outputs.
+\end{itemize}
+
+Thus, the agent's possible outputs are limited as follows.
+\begin{multicols}{2}
+\begin{itemize}
+    \item \texttt{REJECTED} (by L1)
+    \item \texttt{NEEDS\_OWNER} \\ \texttt{\_SIGNATURE}
+    \item \texttt{BLOCKED} (by L2)
+    \item \texttt{ERROR} (API error)
+\end{itemize}
+\end{multicols}
 
 \subsection{Threat Model}
+\subsubsection{Assets and Objectives}
+The most important assets are user funds and privacy information. The system is supposed to prevent unsafe plans that might incur losses while protecting addresses, balances, and user intentions, and ensuring policy adherence and invariant preservation for system integrity.
 
-Guidelines: In this subsection, you should explain the threat assumptions generally adopted by the literature on encrypted search. For example, you may clearly indicate the trust assumptions of each party involved in the application (i.e., who is trusted or untrusted?), the goal of the untrusted party (e.g., what does the adversary want to learn?), how the adversary will behave, in a semi-honest fashion or in a malicious manner?
+\subsubsection{Adversaries and Capabilities}
+Assume adversaries can access the input interface in an open communication platform, observe timing/metadata, and influence tool output to the extent allowed by mocked/external data sources. The following adversaries prevail under these assumptions.
 
+\begin{itemize}
+    \item External prompt adversary: use chat input to induce unsafe plans (e.g., "I need money", role-play jail breaking). 
+    \item Indirect data adversary: inject malicious instructions via external tools/data (e.g., payload in market feeds). 
+    \item Context Poisoner: forge provenance (fake admin/system claims) or taint historical context/memory.
+    \item Fraudster: exploits policy gaps (e.g., routers/tokens not on allowlists, extreme slippage).
+\end{itemize}
 
-\begin{table}[h]
+\subsubsection{Adversaries Attack Surfaces}
+
+\begin{itemize}
+    \item Open chat input channel (Telegram/WhatsApp natural language inputs).
+    \item External tool outputs (e.g., quotes and market snapshots are susceptible to indirect injection). 
+    \item State/memory (if any retained context is used beyond a single request) allowing information leakage.
+    \item Public or unprotected API surface (HTTP endpoints).
+\end{itemize}
+
+\subsubsection{Threat Categories and Controls}
+The following table models some of the anticipated threat categories in the system.
+
+\begin{table}[H]
 \centering
-\caption{Comparison of encrypted search schemes.}
+\caption{Common Threats, Controls Layers, and Outcomes}
 \label{my-label}
-\begin{tabular}{|l|l|l|}
+\begin{tabular}{lll}
 \hline
-Scheme & Search Complexity & Index Size \\ \hline
-\cite{SongWP00}   & ...              & ...       \\ \hline
-...    & ...               & ...        \\ \hline
+Threats & Controls & Outcome \\ \hline
+Direct Prompt Injection   & L1    & \texttt{REJECTED}       \\ \hline
+Jailbreak / Role‑Play Escalation     & L1                & \texttt{REJECTED}        \\ \hline
+Valid But Policy‑Violating Requests \\ (e.g., slippage exceeding threshold)     & L2                & \texttt{BLOCKED}        \\ \hline
+Indirect Data Adversaries   & L1 + Tools    & \texttt{REJECTED/ERROR}       \\ \hline
+Context Poisoning  & L1    & \texttt{REJECTED}       \\ \hline
+Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
 \end{tabular}
 \end{table}
+
+\subsubsection{Full Security Invariants and Policies} Besides I1 and I2, we introduce two more invariants for schema and context.
+
+\begin{itemize}
+    \item Invariant I3 (Schema Integrity): All cross‑component messages conform to \texttt{schemas.py} and are validated before sending and upon arrival.
+    \item Invariant I4 (Context Discipline): Tool outputs treated as untrusted data; never merged into instruction channels.
+\end{itemize}
+
+
 
 
 \section{Research Directions of Encrypted Search}
@@ -58,13 +131,6 @@ Scheme & Search Complexity & Index Size \\ \hline
 
 Guidelines: In this subsection, you should introduce the typical research directions for encrypted search, describe in detail the goals of each research direction in terms of functionality and/or security. You should also specify and discuss the design challenges in each direction based on your literature study and or your personal perspectives. Besides, you should properly discuss the existing works and try to reflect the state-of-the-art. A possible organization structure is given below. 
 
-
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=2in]{./fig1.png}
-  \caption{Outsourcing encrypted data to the cloud.}
-  \label{fig_model}
-\end{figure}
 
 \subsection{Basic Searchable Encryption}
 
