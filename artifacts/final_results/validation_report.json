@@ -1,0 +1,28 @@
+{
+  "all_checks_pass": true,
+  "checks": {
+    "bare": {
+      "case_count_matches_dataset": true,
+      "asr_matches": true,
+      "fp_matches": true,
+      "tr_matches": true
+    },
+    "l1": {
+      "case_count_matches_dataset": true,
+      "asr_matches": true,
+      "fp_matches": true,
+      "tr_matches": true
+    },
+    "l1l2": {
+      "case_count_matches_dataset": true,
+      "asr_matches": true,
+      "fp_matches": true,
+      "tr_matches": true
+    }
+  },
+  "source_modes": {
+    "bare": "archived",
+    "l1": "archived",
+    "l1l2": "archived"
+  }
+}

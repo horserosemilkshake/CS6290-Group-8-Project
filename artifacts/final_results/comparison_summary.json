@@ -1,0 +1,29 @@
+{
+  "dataset": {
+    "name": "final_attack_dataset_v1",
+    "case_count": 100
+  },
+  "configs": [
+    {
+      "config": "bare",
+      "asr": 0.75,
+      "fp": 0.0,
+      "tr": 3.8599074999999914,
+      "sample_size": 100
+    },
+    {
+      "config": "l1",
+      "asr": 0.25,
+      "fp": 0.0,
+      "tr": 3.373532999999952,
+      "sample_size": 100
+    },
+    {
+      "config": "l1l2",
+      "asr": 0.14,
+      "fp": 0.0,
+      "tr": 3.6947906999999987,
+      "sample_size": 100
+    }
+  ]
+}
