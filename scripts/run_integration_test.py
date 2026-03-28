@@ -22,11 +22,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -300,6 +295,11 @@ def write_summary_files(
 
 
 def generate_figures(statistics_payload: Dict[str, Any], figures_dir: Path) -> Dict[str, Path]:
+    # Lazy import so metrics-only tests do not require matplotlib during module import.
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     figures_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = ["asr", "fp", "tr"]
