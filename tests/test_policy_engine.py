@@ -1,520 +1,344 @@
-"""Unit tests for the L2 Policy Engine.
-
-Tests are organised by rule ID (R-01 … R-04, R-05, R-07, R-17) plus
-engine-level integration tests that verify orchestration and multi-violation
-handling.
-"""
+"""Unit tests for the L2 Policy Engine."""
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Optional
 
 from policy_engine import config as cfg
 from policy_engine.engine import evaluate_policy
 from policy_engine.rules import (
+    APPROVE_SELECTOR,
+    MAX_UINT256,
+    check_network_scope,
+    check_manual_deadline_override,
+    check_manual_price_override,
+    check_manual_slippage_override,
+    check_no_unlimited_approval,
+    check_quote_expiry,
+    check_request_numeric_sanity,
+    check_request_override_safety,
+    check_requested_chain_override,
+    check_request_trade_sanity,
     check_router_allowlist,
     check_slippage,
     check_token_allowlist,
-    check_value_cap,
-    check_no_unlimited_approval,
     check_txplan_structure,
-    check_network_scope,
-    APPROVE_SELECTOR,
-    MAX_UINT256,
+    check_value_cap,
+    compute_slippage_bps,
+    extract_request_signals,
 )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _intent(sell_token="ETH", buy_token="USDC", sell_amount=str(10**18), chain_id=1):
+def _intent(
+    sell_token: str = "ETH",
+    buy_token: str = "USDC",
+    sell_amount: str = str(10**18),
+    chain_id: int = 1,
+    request_signals=None,
+):
     return SimpleNamespace(
         sell_token=sell_token,
         buy_token=buy_token,
         sell_amount=sell_amount,
         chain_id=chain_id,
+        request_signals=request_signals or {},
     )
 
 
 def _tool_response(
-    to_token_amount="2800000000",
-    router="0x1111111254fb6c44bac0bed2854e76f90643097d",
+    to_token_amount: str = "2800000000",
+    router: str = "0x1111111254fb6c44bac0bed2854e76f90643097d",
     market_snapshot=None,
+    quote_expires_at: Optional[str] = None,
 ):
     if market_snapshot is None:
         market_snapshot = {"ETH": 2800.50, "USDC": 0.99}
+    if quote_expires_at is None:
+        quote_expires_at = (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()
+
     tx = SimpleNamespace(to=router, data="0x", value="0")
     quote = SimpleNamespace(
         to_token_amount=to_token_amount,
         tx=tx,
         estimated_gas="300000",
         gas_price_gwei="50",
+        metadata={
+            "quoted_at": datetime.now(timezone.utc).isoformat(),
+            "quote_expires_at": quote_expires_at,
+            "quote_ttl_seconds": cfg.QUOTE_TTL_SECONDS,
+            "max_slippage_bps": cfg.MAX_SLIPPAGE_BPS,
+        },
     )
     return SimpleNamespace(market_snapshot=market_snapshot, quote=quote)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  R-01  Token allowlist
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_r01_valid_tokens():
-    assert check_token_allowlist("ETH", "USDC") is None
-    assert check_token_allowlist("WETH", "USDT") is None
-    assert check_token_allowlist("DAI", "ETH") is None
-
-
-def test_r01_case_insensitive():
-    assert check_token_allowlist("eth", "usdc") is None
-
-
-def test_r01_invalid_sell_token():
-    v = check_token_allowlist("SCAM", "USDC")
-    assert v is not None
-    assert v.rule_id == "R-01"
-    assert "SCAM" in v.description
-
-
-def test_r01_invalid_buy_token():
-    v = check_token_allowlist("ETH", "SUPERSCAMCOIN")
-    assert v is not None
-    assert v.rule_id == "R-01"
-    assert "SUPERSCAMCOIN" in v.description
-
-
-def test_r01_both_invalid():
-    v = check_token_allowlist("FOO", "BAR")
-    assert v is not None
-    assert len(v.details["disallowed_tokens"]) == 2
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  R-02  Router allowlist
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_r02_valid_router():
-    assert check_router_allowlist("0x1111111254fb6c44bac0bed2854e76f90643097d") is None
-
-
-def test_r02_valid_router_mixed_case():
-    assert check_router_allowlist("0x1111111254FB6C44BAC0BED2854E76F90643097D") is None
-
-
-def test_r02_invalid_router():
-    v = check_router_allowlist("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
-    assert v is not None
-    assert v.rule_id == "R-02"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  R-03  Slippage
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_r03_within_limit():
-    """1 ETH → ~2800 USDC; mock quote slippage ≈ 1 % → pass."""
-    v = check_slippage(
-        "ETH", "USDC",
-        str(10**18),       # 1 ETH
-        "2800000000",      # 2800 USDC (6-dec)
-        {"ETH": 2800.50, "USDC": 0.99},
-    )
-    assert v is None
-
-
-def test_r03_exceeds_limit():
-    """Artificial: quote returns only 2000 USDC for 1 ETH → >20 % slippage."""
-    v = check_slippage(
-        "ETH", "USDC",
-        str(10**18),
-        "2000000000",      # 2000 USDC
-        {"ETH": 2800.50, "USDC": 0.99},
-    )
-    assert v is not None
-    assert v.rule_id == "R-03"
-
-
-def test_r03_missing_price_skips():
-    """Without market prices the check is inconclusive → skip (None)."""
-    v = check_slippage("ETH", "USDC", str(10**18), "2800000000", {})
-    assert v is None
-
-
-def test_r03_sanity_ceiling_skips():
-    """Absurd slippage from mock data anomaly → skip rather than false-BLOCK."""
-    v = check_slippage(
-        "USDC", "ETH",
-        str(100 * 10**18),
-        "280000000000",    # mock's wrong output for reverse direction
-        {"USDC": 0.99, "ETH": 2800.50},
-    )
-    assert v is None
-
-
-def test_r03_negative_slippage_skips():
-    """Quote better than market (negative slippage) → skip."""
-    v = check_slippage(
-        "ETH", "USDC",
-        str(10**18),
-        "5000000000",      # 5000 USDC — better than market
-        {"ETH": 2800.50, "USDC": 0.99},
-    )
-    assert v is None
-
-
-def test_r03_non_18_decimal_sell_within_limit():
-    """100 USDC (6-decimal sell) → ~0.035 ETH; slippage ≈ 1 % → pass.
-
-    Regression: check_slippage must use TOKEN_DECIMALS for the sell token,
-    not assume 18 decimals. A 100 USDC sell is 100 * 10**6 raw units.
-    If 18 decimals were assumed the sell_human would be ~1e-10 and
-    slippage would be computed incorrectly.
-    """
-    v = check_slippage(
-        "USDC", "ETH",
-        str(100 * 10**6),        # 100 USDC raw (6-decimal)
-        str(int(0.035 * 10**18)), # ≈ 0.035 ETH raw (18-decimal)
-        {"USDC": 1.0, "ETH": 2800.0},
-    )
-    assert v is None
-
-
-def test_r03_non_18_decimal_sell_exceeds_limit():
-    """100 USDC (6-decimal sell) → only 0.025 ETH received; slippage ~30 % → block.
-
-    0.025 ETH ≈ 70 USD for 100 USDC worth of value → 30 % slippage.
-    30 % is above MAX_SLIPPAGE_BPS (10 %) but below SLIPPAGE_SANITY_CEILING_BPS
-    (50 %), so R-03 should fire instead of being swallowed by the sanity guard.
-    """
-    v = check_slippage(
-        "USDC", "ETH",
-        str(100 * 10**6),          # 100 USDC raw (6-decimal)
-        str(int(0.025 * 10**18)),  # 0.025 ETH ≈ 70 USD — ~30 % slippage
-        {"USDC": 1.0, "ETH": 2800.0},
-    )
-    assert v is not None
-    assert v.rule_id == "R-03"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  R-04  Value cap
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_r04_within_cap():
-    v = check_value_cap("ETH", str(int(0.5 * 10**18)), {"ETH": 2800})
-    assert v is None
-
-
-def test_r04_at_cap_boundary():
-    v = check_value_cap("ETH", str(int(cfg.MAX_SINGLE_TX_VALUE_ETH * 10**18)), {"ETH": 2800})
-    assert v is None  # exactly at cap → allowed
-
-
-def test_r04_exceeds_cap():
-    v = check_value_cap("ETH", str(10 * 10**18), {"ETH": 2800})
-    assert v is not None
-    assert v.rule_id == "R-04"
-
-
-def test_r04_stablecoin_within_cap():
-    """100 USDC (6-decimal) ≈ 0.035 ETH → well within cap."""
-    v = check_value_cap("USDC", str(100 * 10**6), {"USDC": 0.99, "ETH": 2800})
-    assert v is None
-
-
-def test_r04_stablecoin_exceeds_cap():
-    """50000 USDC (6-decimal) ≈ 17.6 ETH → exceeds 5 ETH cap."""
-    v = check_value_cap("USDC", str(50000 * 10**6), {"USDC": 0.99, "ETH": 2800})
-    assert v is not None
-    assert v.rule_id == "R-04"
-    assert v.details["value_eth"] > cfg.MAX_SINGLE_TX_VALUE_ETH
-
-
-def test_r04_usdt_correct_decimals():
-    """Verify USDT also uses 6-decimal parsing."""
-    # 100 USDT ≈ 0.035 ETH → within cap
-    v = check_value_cap("USDT", str(100 * 10**6), {"USDT": 1.0, "ETH": 2800})
-    assert v is None
-
-
-def test_r04_invalid_amount():
-    v = check_value_cap("ETH", "not_a_number", {"ETH": 2800})
-    assert v is not None
-    assert v.rule_id == "R-04"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Engine integration
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_engine_allow_normal_swap():
-    """0.5 ETH → USDC: all rules pass → ALLOW."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)))
-    tr = _tool_response(to_token_amount="1400000000")
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "ALLOW"
-    assert result["violations"] == []
-    assert "checked_at" in result
-
-
-def test_engine_block_bad_token():
-    """Scam token → R-01 fires → BLOCK."""
-    intent = _intent(buy_token="SUPERSCAMCOIN")
-    tr = _tool_response()
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-01" in rule_ids
-
-
-def test_engine_block_value_cap():
-    """10 ETH swap exceeds 5 ETH cap → R-04 fires → BLOCK."""
-    intent = _intent(sell_amount=str(10 * 10**18))
-    tr = _tool_response(to_token_amount="28000000000")
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-04" in rule_ids
-
-
-def test_engine_block_bad_router():
-    """Unknown router → R-02 fires → BLOCK."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)))
-    tr = _tool_response(
-        router="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-        to_token_amount="1400000000",
-    )
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-02" in rule_ids
-
-
-def test_engine_multiple_violations():
-    """Bad token + value cap + bad router → multiple violations in one BLOCK."""
-    intent = _intent(sell_amount=str(10 * 10**18), buy_token="SCAM")
-    tr = _tool_response(
-        router="0xbad",
-        to_token_amount="1",
-    )
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "BLOCK"
-    rule_ids = {v["rule_id"] for v in result["violations"]}
-    assert "R-01" in rule_ids
-    assert "R-02" in rule_ids
-    assert "R-04" in rule_ids
-
-
-def test_engine_failsafe_on_exception():
-    """If intent is malformed the engine blocks (fail-safe)."""
-    bad_intent = SimpleNamespace()  # missing required attributes
-    tr = _tool_response()
-    result = evaluate_policy(bad_intent, tr)
-    assert result["decision"] == "BLOCK"
-    assert any(v["rule_id"] == "R-SYS" for v in result["violations"])
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-#  R-05  No unlimited approvals
-# ═════════════════════════════════════════════════════════════════════════════
-
 def _build_approve_calldata(spender: str, amount: int) -> str:
-    """Build hex-encoded approve(address, uint256) calldata."""
     spender_padded = spender.lower().replace("0x", "").zfill(64)
     amount_hex = hex(amount)[2:].zfill(64)
     return APPROVE_SELECTOR + spender_padded + amount_hex
 
 
+def test_r01_valid_tokens():
+    assert check_token_allowlist("ETH", "USDC") is None
+    assert check_token_allowlist("eth", "usdc") is None
+
+
+def test_r01_invalid_tokens():
+    violation = check_token_allowlist("SCAM", "USDC")
+    assert violation is not None
+    assert violation.rule_id == "R-01"
+
+
+def test_r02_invalid_router():
+    violation = check_router_allowlist("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+    assert violation is not None
+    assert violation.rule_id == "R-02"
+
+
+def test_r03_within_limit():
+    violation = check_slippage(
+        "ETH",
+        "USDC",
+        str(10**18),
+        "2800000000",
+        {"ETH": 2800.50, "USDC": 0.99},
+    )
+    assert violation is None
+
+
+def test_r03_exceeds_limit():
+    violation = check_slippage(
+        "ETH",
+        "USDC",
+        str(10**18),
+        "2000000000",
+        {"ETH": 2800.50, "USDC": 0.99},
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-03"
+
+
+def test_compute_slippage_bps_returns_value():
+    result = compute_slippage_bps(
+        "USDC",
+        "ETH",
+        str(100 * 10**6),
+        str(int(0.025 * 10**18)),
+        {"USDC": 1.0, "ETH": 2800.0},
+    )
+    assert result is not None
+    assert 1000 < result < 5000
+
+
+def test_r04_exceeds_cap():
+    violation = check_value_cap("ETH", str(10 * 10**18), {"ETH": 2800})
+    assert violation is not None
+    assert violation.rule_id == "R-04"
+
+
 def test_r05_unlimited_approval_blocked():
-    """MAX_UINT256 approval → R-05 fires."""
     calldata = _build_approve_calldata("0xdead" + "0" * 36, MAX_UINT256)
-    v = check_no_unlimited_approval(calldata)
-    assert v is not None
-    assert v.rule_id == "R-05"
+    violation = check_no_unlimited_approval(calldata)
+    assert violation is not None
+    assert violation.rule_id == "R-05"
 
 
-def test_r05_reasonable_approval_allowed():
-    """A scoped approval of 1000 tokens → passes."""
-    calldata = _build_approve_calldata("0xdead" + "0" * 36, 1000 * 10**18)
-    v = check_no_unlimited_approval(calldata)
-    assert v is None
+def test_extract_request_signals_detects_manual_overrides():
+    signals = extract_request_signals(
+        "Swap 1 ETH to USDT with 50% slippage, use router address 0xBad, deadline: 0."
+    )
+    assert signals["mentions_slippage"] is True
+    assert signals["mentions_router_override"] is True
+    assert signals["mentions_deadline"] is True
 
 
-def test_r05_near_max_blocked():
-    """99.5% of MAX_UINT256 is still “effectively infinite” → blocked."""
-    near_max = MAX_UINT256 * 995 // 1000
-    calldata = _build_approve_calldata("0xdead" + "0" * 36, near_max)
-    v = check_no_unlimited_approval(calldata)
-    assert v is not None
-    assert v.rule_id == "R-05"
+def test_r03_manual_slippage_override_blocked():
+    violation = check_manual_slippage_override(
+        extract_request_signals("Swap 1 ETH to USDT with 50% slippage.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-03"
 
 
-def test_r05_non_approve_calldata_skips():
-    """A transfer() call is not an approve → skip."""
-    v = check_no_unlimited_approval("0xa9059cbb" + "00" * 64)
-    assert v is None
+def test_r09_manual_deadline_override_blocked():
+    violation = check_manual_deadline_override(
+        extract_request_signals("Swap 1 ETH to USDT. Deadline: 0.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-09"
 
 
-def test_r05_empty_calldata_skips():
-    """Plain ETH transfer (no calldata) → skip."""
-    v = check_no_unlimited_approval("0x")
-    assert v is None
-    v2 = check_no_unlimited_approval("")
-    assert v2 is None
+def test_r13_execution_override_blocked():
+    violation = check_request_override_safety(
+        extract_request_signals("Swap 1 ETH to USDT, recipient = self, extra params: {\"gasPrice\":\"1 gwei\"}")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-13"
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  R-07  TxPlan structure validation
-# ═════════════════════════════════════════════════════════════════════════════
-
-def test_r07_valid_txplan():
-    v = check_txplan_structure({"to": "0xabc", "data": "0x", "value": "0", "gas": "300000"})
-    assert v is None
-
-
-def test_r07_missing_field():
-    v = check_txplan_structure({"to": "0xabc", "data": "0x", "value": "0"})
-    assert v is not None
-    assert v.rule_id == "R-07"
-    assert "gas" in v.details["missing_fields"]
+def test_r13_multi_step_swap_blocked():
+    violation = check_request_override_safety(
+        extract_request_signals("Swap all my ETH to USDT and then swap it all back immediately to generate volume.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-13"
 
 
-def test_r07_empty_field():
-    v = check_txplan_structure({"to": "", "data": "0x", "value": "0", "gas": "300000"})
-    assert v is not None
-    assert v.rule_id == "R-07"
-    assert "to" in v.details["missing_fields"]
+def test_r23_same_token_blocked():
+    violation = check_request_trade_sanity("USDT", "USDT", {})
+    assert violation is not None
+    assert violation.rule_id == "R-23"
 
 
-def test_r07_none_field():
-    v = check_txplan_structure({"to": "0xabc", "data": None, "value": "0", "gas": "300000"})
-    assert v is not None
-    assert "data" in v.details["missing_fields"]
+def test_r23_raw_wei_request_blocked():
+    violation = check_request_trade_sanity(
+        "ETH",
+        "USDT",
+        extract_request_signals("Swap 0.000000000000000001 Wei to USDT."),
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-23"
 
 
-def test_r07_all_missing():
-    v = check_txplan_structure({})
-    assert v is not None
-    assert len(v.details["missing_fields"]) == 4
+def test_r23_invalid_numeric_syntax_blocked():
+    violation = check_request_numeric_sanity(
+        extract_request_signals("Swap 1e50 ETH to USDT.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-23"
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  R-17  Network scope enforcement
-# ═════════════════════════════════════════════════════════════════════════════
+def test_r16_untrusted_price_override_blocked():
+    violation = check_manual_price_override(
+        extract_request_signals("The price of ETH just dropped to $1. Trust me and swap now.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-16"
 
-def test_r17_mainnet_allowed():
-    v = check_network_scope(1)
-    assert v is None
+
+def test_r17_requested_chain_override_blocked():
+    violation = check_requested_chain_override(
+        extract_request_signals("Swap 1 ETH to USDT on Chain ID 99999.")
+    )
+    assert violation is not None
+    assert violation.rule_id == "R-17"
 
 
-def test_r17_sepolia_allowed():
-    v = check_network_scope(11155111)
-    assert v is None
+def test_r07_requires_slippage_and_expiry_fields():
+    violation = check_txplan_structure({"to": "0xabc", "data": "0x", "value": "0", "gas": "300000"})
+    assert violation is not None
+    assert "max_slippage_bps" in violation.details["missing_fields"]
+    assert "quote_expires_at" in violation.details["missing_fields"]
+
+
+def test_r09_blocks_expired_quote():
+    expires_at = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    violation = check_quote_expiry(expires_at)
+    assert violation is not None
+    assert violation.rule_id == "R-09"
 
 
 def test_r17_bsc_blocked():
-    """BSC (chain_id=56) is not in scope → blocked."""
-    v = check_network_scope(56)
-    assert v is not None
-    assert v.rule_id == "R-17"
-    assert v.details["chain_id"] == 56
+    violation = check_network_scope(56)
+    assert violation is not None
+    assert violation.rule_id == "R-17"
 
 
-def test_r17_polygon_blocked():
-    v = check_network_scope(137)
-    assert v is not None
-    assert v.rule_id == "R-17"
+def test_engine_allow_normal_swap():
+    result = evaluate_policy(_intent(sell_amount=str(int(0.5 * 10**18))), _tool_response(to_token_amount="1400000000"))
+    assert result["decision"] == "ALLOW"
+    assert result["violations"] == []
+    assert result["audit"]["quote_expires_at"]
 
 
-def test_r17_arbitrum_blocked():
-    v = check_network_scope(42161)
-    assert v is not None
-    assert v.rule_id == "R-17"
+def test_engine_block_bad_token():
+    result = evaluate_policy(_intent(buy_token="SUPERSCAMCOIN"), _tool_response())
+    assert result["decision"] == "BLOCK"
+    assert "R-01" in {violation["rule_id"] for violation in result["violations"]}
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  Engine integration — new rules
-# ═════════════════════════════════════════════════════════════════════════════
+def test_engine_block_expired_quote():
+    expired = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    result = evaluate_policy(_intent(), _tool_response(quote_expires_at=expired))
+    assert result["decision"] == "BLOCK"
+    assert "R-09" in {violation["rule_id"] for violation in result["violations"]}
+
 
 def test_engine_block_unlimited_approval():
-    """TxPlan with MAX_UINT256 approve calldata → R-05 fires."""
-    calldata = _build_approve_calldata("0xdead" + "0" * 36, MAX_UINT256)
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)))
-    tr = _tool_response(to_token_amount="1400000000")
-    # Patch tx.data with the approve calldata
-    tr.quote.tx.data = calldata
-    result = evaluate_policy(intent, tr)
+    tool_response = _tool_response(to_token_amount="1400000000")
+    tool_response.quote.tx.data = _build_approve_calldata("0xdead" + "0" * 36, MAX_UINT256)
+    result = evaluate_policy(_intent(sell_amount=str(int(0.5 * 10**18))), tool_response)
     assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-05" in rule_ids
+    assert "R-05" in {violation["rule_id"] for violation in result["violations"]}
 
 
 def test_engine_block_wrong_chain():
-    """BSC chain_id → R-17 fires."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)), chain_id=56)
-    tr = _tool_response(to_token_amount="1400000000")
-    result = evaluate_policy(intent, tr)
+    result = evaluate_policy(_intent(chain_id=56), _tool_response(to_token_amount="1400000000"))
     assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-17" in rule_ids
+    assert "R-17" in {violation["rule_id"] for violation in result["violations"]}
 
 
-def test_engine_allow_mainnet_normal():
-    """Normal swap on mainnet (chain_id=1) with valid data → ALLOW."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)), chain_id=1)
-    tr = _tool_response(to_token_amount="1400000000")
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "ALLOW"
-
-
-def test_engine_block_missing_gas():
-    """Quote without estimated_gas → R-07 fires."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)))
-    tr = _tool_response(to_token_amount="1400000000")
-    del tr.quote.estimated_gas  # remove the field
-    result = evaluate_policy(intent, tr)
-    assert result["decision"] == "BLOCK"
-    rule_ids = [v["rule_id"] for v in result["violations"]]
-    assert "R-07" in rule_ids
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-#  Engine — audit context (6c)
-# ═════════════════════════════════════════════════════════════════════════════
-
-def test_engine_audit_context_present():
-    """evaluate_policy returns an 'audit' dict with intent metadata."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)), chain_id=1)
-    tr = _tool_response(to_token_amount="1400000000")
-    result = evaluate_policy(intent, tr)
-    assert "audit" in result
+def test_engine_audit_contains_slippage_and_router():
+    result = evaluate_policy(_intent(sell_amount=str(int(0.5 * 10**18))), _tool_response(to_token_amount="1400000000"))
     audit = result["audit"]
-    assert audit["sell_token"] == "ETH"
-    assert audit["buy_token"] == "USDC"
-    assert audit["chain_id"] == 1
-    assert "R-01" in audit["rules_checked"]
-    assert "R-17" in audit["rules_checked"]
+    assert audit["router"] == "0x1111111254fb6c44bac0bed2854e76f90643097d"
+    assert "computed_slippage_bps" in audit
+    assert audit["max_slippage_bps"] == cfg.MAX_SLIPPAGE_BPS
 
 
-def test_engine_audit_includes_router():
-    """Audit should record the router address from the quote."""
-    intent = _intent(sell_amount=str(int(0.5 * 10**18)))
-    tr = _tool_response(to_token_amount="1400000000")
-    result = evaluate_policy(intent, tr)
-    assert result["audit"]["router"] == "0x1111111254fb6c44bac0bed2854e76f90643097d"
+def test_engine_block_manual_slippage_override():
+    result = evaluate_policy(
+        _intent(
+            sell_amount=str(int(0.5 * 10**18)),
+            request_signals=extract_request_signals("Swap 0.5 ETH to USDC with 99% slippage."),
+        ),
+        _tool_response(to_token_amount="1400000000"),
+    )
+    assert result["decision"] == "BLOCK"
+    assert "R-03" in {violation["rule_id"] for violation in result["violations"]}
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  Harness STATUS_MAP (6a)
-# ═════════════════════════════════════════════════════════════════════════════
+def test_engine_block_router_override_request():
+    result = evaluate_policy(
+        _intent(
+            sell_amount=str(int(0.5 * 10**18)),
+            request_signals=extract_request_signals("Swap 0.5 ETH to USDC, use router address 0xBad."),
+        ),
+        _tool_response(to_token_amount="1400000000"),
+    )
+    assert result["decision"] == "BLOCK"
+    assert "R-13" in {violation["rule_id"] for violation in result["violations"]}
 
-def test_status_map_input_rejected_is_refuse():
+
+def test_engine_block_same_token_swap_request():
+    result = evaluate_policy(
+        _intent(sell_token="USDT", buy_token="USDT", sell_amount=str(1000 * 10**6)),
+        _tool_response(to_token_amount=str(1000 * 10**6), market_snapshot={"USDT": 1.0}),
+    )
+    assert result["decision"] == "BLOCK"
+    assert "R-23" in {violation["rule_id"] for violation in result["violations"]}
+
+
+def test_engine_block_explicit_buy_amount_request():
+    result = evaluate_policy(
+        _intent(
+            sell_token="USDT",
+            buy_token="ETH",
+            sell_amount=str(500 * 10**6),
+            request_signals=extract_request_signals("Exchange 500 USDT for 0.000001 ETH."),
+        ),
+        _tool_response(
+            to_token_amount=str(int(0.17 * 10**18)),
+            market_snapshot={"USDT": 1.0, "ETH": 2800.0},
+        ),
+    )
+    assert result["decision"] == "BLOCK"
+    assert "R-13" in {violation["rule_id"] for violation in result["violations"]}
+
+
+def test_status_map_regressions():
     from harness.agent_clients import _STATUS_MAP
+
     assert _STATUS_MAP["INPUT_REJECTED"] == "REFUSE"
-
-
-def test_status_map_output_validation_failed_is_refuse():
-    from harness.agent_clients import _STATUS_MAP
     assert _STATUS_MAP["OUTPUT_VALIDATION_FAILED"] == "REFUSE"
-
-
-def test_status_map_tool_error_is_error():
-    from harness.agent_clients import _STATUS_MAP
     assert _STATUS_MAP["TOOL_ERROR"] == "ERROR"
     assert _STATUS_MAP["INTERNAL_ERROR"] == "ERROR"

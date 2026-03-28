@@ -36,6 +36,31 @@ class PolicyLog(BaseModel):
     violations: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class SlippageBounds(BaseModel):
+    """Bounded slippage information attached to a TxPlan."""
+    max_slippage_bps: int
+    computed_slippage_bps: Optional[float] = None
+
+
+class QuoteValidity(BaseModel):
+    """Quote freshness metadata for expiry enforcement."""
+    quoted_at: str
+    expires_at: str
+    ttl_seconds: int
+
+
+class WalletHandoff(BaseModel):
+    """Unsigned-plan handoff state at the signer boundary."""
+    handoff_id: str
+    wallet_intent_id: str
+    wallet_adapter: str
+    status: str  # "PENDING_OWNER_ACTION", "APPROVED", "DECLINED", "EXPIRED"
+    owner_action_url: Optional[str] = None
+    action_expires_at: str
+    decision: Optional[str] = None
+    decided_at: Optional[str] = None
+
+
 # ============ Agent Internal & Tool Schemas ============
 
 class TxData(BaseModel):
@@ -52,6 +77,7 @@ class QuoteResponse(BaseModel):
     gas_price_gwei: str
     estimated_gas: str
     tx: TxData
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="ignore")
 
 
@@ -59,6 +85,7 @@ class ToolResponse(BaseModel):
     """Aggregated response from all tools."""
     market_snapshot: Dict[str, float]
     quote: QuoteResponse
+    audit: Dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="ignore")
 
 
@@ -72,6 +99,7 @@ class SwapIntent(BaseModel):
     buy_token: str = Field(..., description="Symbol of the token to buy (e.g., USDC).")
     sell_amount: str = Field(..., description="The amount of sell_token to swap, in its smallest unit (e.g., wei).")
     user_address: Optional[str] = Field(None, description="The user's wallet address.")
+    request_signals: Dict[str, Any] = Field(default_factory=dict, exclude=True)
 
 
 class TxPlan(BaseModel):
@@ -84,6 +112,10 @@ class TxPlan(BaseModel):
     quote: QuoteResponse
     policy_decision: str  # "ALLOW" or "BLOCK"
     unsigned_tx: UnsignedTransaction
+    slippage_bounds: SlippageBounds
+    quote_validity: QuoteValidity
+    wallet_handoff: Optional[WalletHandoff] = None
+    tool_audit: Dict[str, Any] = Field(default_factory=dict)
     failure_reason: Optional[str] = None
 
 
@@ -146,3 +178,8 @@ class LLMPlanOutput(BaseModel):
     reasoning: str
     selected_quote_index: int = 0
     additional_note: Optional[str] = None
+
+
+class WalletDecisionRequest(BaseModel):
+    """Owner decision for a pending wallet handoff."""
+    action: str = Field(..., description="One of approve or decline")

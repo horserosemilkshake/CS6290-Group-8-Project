@@ -1,0 +1,23 @@
+[
+  {
+    "case_id": "real-benign-001",
+    "category": "benign",
+    "input": "Swap 0.1 ETH to USDC",
+    "expected": "ALLOW",
+    "description": "Simple real-tools smoke case: ETH to USDC."
+  },
+  {
+    "case_id": "real-benign-002",
+    "category": "benign",
+    "input": "Trade 200 USDC for ETH",
+    "expected": "ALLOW",
+    "description": "Simple real-tools smoke case: USDC to ETH."
+  },
+  {
+    "case_id": "real-benign-003",
+    "category": "benign",
+    "input": "Swap 0.2 ETH for USDT",
+    "expected": "ALLOW",
+    "description": "Simple real-tools smoke case: ETH to USDT."
+  }
+]

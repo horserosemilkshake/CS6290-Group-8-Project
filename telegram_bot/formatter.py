@@ -45,6 +45,8 @@ def format_allow(data: Dict[str, Any]) -> str:
     intent: Dict[str, Any] = plan.get("intent", {})
     quote: Dict[str, Any] = plan.get("quote", {})
     summary: str = plan.get("summary", "")
+    quote_validity: Dict[str, Any] = plan.get("quote_validity", {})
+    wallet_handoff: Dict[str, Any] = plan.get("wallet_handoff", {})
 
     sell = intent.get("sell_token", "?")
     buy = intent.get("buy_token", "?")
@@ -78,6 +80,12 @@ def format_allow(data: Dict[str, Any]) -> str:
 
     if summary:
         lines.append(f"Summary: {_truncate(summary)}")
+
+    if quote_validity.get("expires_at"):
+        lines.append(f"Quote valid until: {_truncate(str(quote_validity['expires_at']), 40)}")
+
+    if wallet_handoff.get("handoff_id"):
+        lines.append(f"Handoff: {wallet_handoff.get('handoff_id')} ({wallet_handoff.get('status', 'pending')})")
 
     lines.append("Status: Awaiting owner signature (not broadcasted)")
 

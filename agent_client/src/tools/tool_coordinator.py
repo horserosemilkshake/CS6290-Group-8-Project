@@ -1,46 +1,38 @@
 """
 Tool Coordinator: fetches market snapshot (prices) and DEX swap quotes.
 
-This module prefers real external APIs but falls back to the previous mock
-implementations when network calls fail or when environment disables real mode.
+This module supports two execution modes:
+- deterministic mock mode for reproducible evaluation and demos
+- real external APIs for integration smoke tests and live operator demos
 
-APIs used:
-- CoinGecko Simple Price API for market_snapshot (no API key required)
-  https://api.coingecko.com/api/v3/simple/price
-- 1inch Quote API for swap quotes (public, rate-limited)
-  Example: https://api.1inch.dev/swap/v5.2/{chain_id}/quote?fromTokenAddress=...&toTokenAddress=...&amount=...
+Real integrations:
+- CoinGecko Simple Price API
+- 1inch Quote API
 
-Behavior and modes:
-- By default the module will attempt real network calls. Set environment
-  variable `REAL_TOOLS=false` to force using local mock implementations.
-- On any network/parse error the code will log a warning and fall back to
-  the internal mock quote/snapshot to preserve availability (L2 can still block).
+Important runtime behavior:
+- `REAL_TOOLS=false` forces deterministic mock responses.
+- `REAL_TOOLS=true` attempts real APIs first.
+- `REAL_TOOLS_STRICT=true` turns any real-api fallback into a hard failure so
+  demos and smoke tests cannot silently degrade to mock data.
 
-Compatibility:
-- Returns `ToolResponse` and `QuoteResponse` objects that strictly match
-  `agent_client/src/models/schemas.py` (fields: market_snapshot:{SYM:float},
-  quote.to_token_amount(str), quote.estimated_gas(str), quote.tx.to/data/value(str)).
-
-How to debug locally:
-- Run the agent server and call `/v0/agent/plan` with intent like
-  `"Swap 1 ETH for USDC"`. Logs will indicate whether real APIs were used
-  or a fallback mock was returned.
-
+Both market snapshot and quote fetches emit structured audit metadata that is
+carried forward into the generated TxPlan for later inspection.
 """
 
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import os
-from typing import Dict
+import time
+from typing import Any, Dict
 
 import httpx
 
 from ..models.schemas import QuoteResponse, SwapIntent, ToolResponse, TxData
 from ..utils.logger import logger
+from policy_engine import config as policy_cfg
 
 # --- Configuration / mappings ------------------------------------------------
-# Toggle real vs mock tools via env var
-REAL_TOOLS = os.environ.get("REAL_TOOLS", "true").lower() not in ("false", "0", "no")
-
 # CoinGecko symbol -> id mapping (extend as needed)
 COINGECKO_ID_MAP = {
     "ETH": "ethereum",
@@ -87,26 +79,121 @@ _TOKEN_DECIMALS: dict = {
 HTTP_TIMEOUT = 10.0
 
 
-async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, float]:
-    """Fetch latest USD prices for the given symbols using CoinGecko.
+@dataclass(frozen=True)
+class ToolFetchResult:
+    value: Any
+    audit: Dict[str, Any]
 
-    Returns a dict with UPPERCASE symbol keys and float prices. On failure
-    falls back to `_MOCK_PRICES_USD` entries for those symbols.
-    """
+
+def _env_truthy(name: str, default: str = "false") -> bool:
+    return os.environ.get(name, default).lower() not in ("false", "0", "no", "")
+
+
+def _real_tools_enabled() -> bool:
+    return _env_truthy("REAL_TOOLS", "true")
+
+
+def _real_tools_strict() -> bool:
+    return _env_truthy("REAL_TOOLS_STRICT", "false")
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _build_quote_timing(valid_to: Any = None) -> Dict[str, Any]:
+    quoted_at = datetime.now(timezone.utc)
+    expires_at = quoted_at + timedelta(seconds=policy_cfg.QUOTE_TTL_SECONDS)
+
+    if valid_to is not None:
+        try:
+            expires_at = datetime.fromtimestamp(int(valid_to), tz=timezone.utc)
+        except (TypeError, ValueError, OSError):
+            pass
+
+    ttl_seconds = max(int((expires_at - quoted_at).total_seconds()), 0)
+    return {
+        "quoted_at": quoted_at.isoformat(),
+        "quote_expires_at": expires_at.isoformat(),
+        "quote_ttl_seconds": ttl_seconds,
+        "max_slippage_bps": policy_cfg.MAX_SLIPPAGE_BPS,
+    }
+
+
+def _get_coingecko_url() -> str:
+    base = os.environ.get("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3").rstrip("/")
+    return f"{base}/simple/price"
+
+
+def _get_coingecko_headers() -> Dict[str, str]:
+    headers = {"Accept": "application/json"}
+    pro_key = os.environ.get("COINGECKO_PRO_API_KEY")
+    demo_key = os.environ.get("COINGECKO_DEMO_API_KEY")
+    if pro_key:
+        headers["x-cg-pro-api-key"] = pro_key
+    elif demo_key:
+        headers["x-cg-demo-api-key"] = demo_key
+    return headers
+
+
+def _get_oneinch_base_url() -> str:
+    return os.environ.get("ONEINCH_BASE_URL", "https://api.1inch.com").rstrip("/")
+
+
+def _get_oneinch_swap_version() -> str:
+    return os.environ.get("ONEINCH_SWAP_VERSION", "v5.2")
+
+
+def _get_oneinch_headers() -> Dict[str, str]:
+    headers = {"Accept": "application/json"}
+    api_key = os.environ.get("ONEINCH_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def get_tool_runtime_status() -> Dict[str, Any]:
+    return {
+        "real_tools_enabled": _real_tools_enabled(),
+        "real_tools_strict": _real_tools_strict(),
+        "coingecko_url": _get_coingecko_url(),
+        "coingecko_api_key_configured": bool(
+            os.environ.get("COINGECKO_PRO_API_KEY") or os.environ.get("COINGECKO_DEMO_API_KEY")
+        ),
+        "oneinch_base_url": _get_oneinch_base_url(),
+        "oneinch_swap_version": _get_oneinch_swap_version(),
+        "oneinch_api_key_configured": bool(os.environ.get("ONEINCH_API_KEY")),
+    }
+
+
+async def _get_market_snapshot_with_audit(sell_token: str, buy_token: str) -> ToolFetchResult:
+    """Fetch latest USD prices with audit information."""
     sell_sym = (sell_token or "").upper()
     buy_sym = (buy_token or "").upper()
 
-    # Prepare result with fallback entries
     result: Dict[str, float] = {
         sell_sym: _MOCK_PRICES_USD.get(sell_sym, 1.0),
         buy_sym: _MOCK_PRICES_USD.get(buy_sym, 1.0),
     }
 
-    if not REAL_TOOLS:
-        logger.info("[Tool] REAL_TOOLS disabled, returning mock market snapshot")
-        return result
+    audit: Dict[str, Any] = {
+        "requested_source": "coingecko",
+        "resolved_source": "mock",
+        "fallback_reason": None,
+        "endpoint": None,
+        "latency_ms": 0.0,
+        "fetched_at": _utc_now_iso(),
+        "used_api_key": bool(
+            os.environ.get("COINGECKO_PRO_API_KEY") or os.environ.get("COINGECKO_DEMO_API_KEY")
+        ),
+        "symbols": [sell_sym, buy_sym],
+    }
 
-    # Map symbols to CoinGecko ids
+    if not _real_tools_enabled():
+        audit["fallback_reason"] = "REAL_TOOLS disabled"
+        logger.info("[Tool] REAL_TOOLS disabled, returning mock market snapshot")
+        return ToolFetchResult(value=result, audit=audit)
+
     ids = set()
     for sym in (sell_sym, buy_sym):
         gid = COINGECKO_ID_MAP.get(sym)
@@ -114,22 +201,25 @@ async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, floa
             ids.add(gid)
 
     if not ids:
+        audit["fallback_reason"] = "missing CoinGecko ids"
         logger.warning("[Tool] No CoinGecko ids for tokens: %s, %s; using mock prices", sell_sym, buy_sym)
-        return result
+        return ToolFetchResult(value=result, audit=audit)
 
-    url = "https://api.coingecko.com/api/v3/simple/price"
+    url = _get_coingecko_url()
     params = {
         "ids": ",".join(sorted(ids)),
         "vs_currencies": "usd",
     }
+    headers = _get_coingecko_headers()
+    audit["endpoint"] = url
 
+    started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            r = await client.get(url, params=params)
+            r = await client.get(url, params=params, headers=headers)
             r.raise_for_status()
             data = r.json()
 
-        # Map back into symbol->price
         for sym in (sell_sym, buy_sym):
             gid = COINGECKO_ID_MAP.get(sym)
             if gid and gid in data and "usd" in data[gid]:
@@ -137,25 +227,29 @@ async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, floa
                     result[sym] = float(data[gid]["usd"])
                 except Exception:
                     logger.warning("[Tool] Failed to parse price for %s from CoinGecko response", sym)
+        audit["resolved_source"] = "coingecko"
+        audit["fallback_reason"] = None
         logger.info("[Tool] Fetched market snapshot from CoinGecko: %s", result)
-        return result
-
+        return ToolFetchResult(value=result, audit=audit)
     except Exception as e:
+        audit["fallback_reason"] = str(e)
         logger.warning("[Tool] CoinGecko request failed (%s), using fallback mock prices", str(e))
-        return result
+        return ToolFetchResult(value=result, audit=audit)
+    finally:
+        audit["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+        audit["fetched_at"] = _utc_now_iso()
 
 
-async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
-    """Fetch a quote for the given `intent` using 1inch public Quote API.
+async def get_market_snapshot(sell_token: str, buy_token: str) -> Dict[str, float]:
+    return (await _get_market_snapshot_with_audit(sell_token, buy_token)).value
 
-    Returns a `QuoteResponse`. On network or parse error falls back to the
-    internal mock quote to ensure availability.
-    """
+
+async def _get_swap_quote_with_audit(intent: SwapIntent) -> ToolFetchResult:
+    """Fetch a quote with audit information."""
     sell_sym = intent.sell_token.upper()
     buy_sym = intent.buy_token.upper()
     chain_id = getattr(intent, "chain_id", 1) or 1
 
-    # Helper: create a mock quote (previous behavior) for fallback
     def _mock_quote() -> QuoteResponse:
         sell_decimals = _TOKEN_DECIMALS.get(sell_sym, 18)
         sell_human = int(intent.sell_amount) / (10 ** sell_decimals)
@@ -174,49 +268,71 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
             "estimated_gas": "300000",
             "tx": {
                 "from": intent.user_address or "",
-                "to": TOKEN_ADDRESS_MAP.get(buy_sym, TOKEN_ADDRESS_MAP.get("WETH")),
+                "to": "0x1111111254fb6c44bAC0beD2854e76F90643097d",
                 "data": "0xdeadbeef...",
                 "value": tx_value,
             },
+            "metadata": _build_quote_timing(),
         }
         return QuoteResponse(**mock_quote)
 
-    if not REAL_TOOLS:
-        logger.info("[Tool] REAL_TOOLS disabled, returning mock swap quote")
-        return _mock_quote()
+    audit: Dict[str, Any] = {
+        "requested_source": "1inch",
+        "resolved_source": "mock",
+        "fallback_reason": None,
+        "endpoint": None,
+        "latency_ms": 0.0,
+        "fetched_at": _utc_now_iso(),
+        "used_api_key": bool(os.environ.get("ONEINCH_API_KEY")),
+        "chain_id": chain_id,
+        "sell_token": sell_sym,
+        "buy_token": buy_sym,
+    }
 
-    # Resolve addresses
+    if not _real_tools_enabled():
+        audit["fallback_reason"] = "REAL_TOOLS disabled"
+        logger.info("[Tool] REAL_TOOLS disabled, returning mock swap quote")
+        quote = _mock_quote()
+        quote.metadata = {**quote.metadata, **audit}
+        return ToolFetchResult(value=quote, audit=audit)
+
     from_addr = TOKEN_ADDRESS_MAP.get(sell_sym)
     to_addr = TOKEN_ADDRESS_MAP.get(buy_sym)
 
     if not from_addr or not to_addr:
+        audit["fallback_reason"] = "missing token address mapping"
         logger.warning("[Tool] Missing token address for %s or %s; falling back to mock quote", sell_sym, buy_sym)
-        return _mock_quote()
+        quote = _mock_quote()
+        quote.metadata = {**quote.metadata, **audit}
+        return ToolFetchResult(value=quote, audit=audit)
 
-    # 1inch uses native ETH marker for native asset
-    url = f"https://api.1inch.dev/swap/v5.2/{chain_id}/quote"
+    base_url = _get_oneinch_base_url()
+    version = _get_oneinch_swap_version()
+    url = f"{base_url}/swap/{version}/{chain_id}/quote"
     params = {
         "fromTokenAddress": from_addr,
         "toTokenAddress": to_addr,
         "amount": str(intent.sell_amount),
     }
+    headers = _get_oneinch_headers()
+    audit["endpoint"] = url
 
+    started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            res = await client.get(url, params=params)
+            res = await client.get(url, params=params, headers=headers)
             res.raise_for_status()
             jd = res.json()
 
-        # 1inch typical fields: toTokenAmount, estimatedGas, tx { to, data, value }, gasPrice (wei)
         to_amount = jd.get("toTokenAmount") or jd.get("to_token_amount") or "0"
         estimated_gas = str(jd.get("estimatedGas") or jd.get("estimated_gas") or "0")
+        timing = _build_quote_timing(jd.get("validTo") or jd.get("valid_to"))
 
         tx_obj = jd.get("tx") or jd.get("transaction") or {}
         tx_to = tx_obj.get("to") or ""
         tx_data = tx_obj.get("data") or ""
         tx_value = tx_obj.get("value") or "0"
 
-        # gas price conversion to gwei if provided in wei
         gas_price_wei = jd.get("gasPrice") or tx_obj.get("gasPrice") or None
         gas_price_gwei = None
         if gas_price_wei is not None:
@@ -225,6 +341,7 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
             except Exception:
                 gas_price_gwei = str(gas_price_wei)
 
+        audit["resolved_source"] = "1inch"
         quote_payload = {
             "to_token_amount": str(to_amount),
             "gas_price_gwei": gas_price_gwei or "0",
@@ -234,14 +351,24 @@ async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
                 "data": tx_data,
                 "value": str(tx_value),
             },
+            "metadata": {**audit, **timing},
         }
 
         logger.info("[Tool] Received quote from 1inch: estimated_gas=%s, to_token_amount=%s", estimated_gas, to_amount)
-        return QuoteResponse(**quote_payload)
-
+        return ToolFetchResult(value=QuoteResponse(**quote_payload), audit=audit)
     except Exception as e:
+        audit["fallback_reason"] = str(e)
         logger.warning("[Tool] 1inch quote request failed (%s), falling back to mock quote", str(e))
-        return _mock_quote()
+        quote = _mock_quote()
+        quote.metadata = {**quote.metadata, **audit}
+        return ToolFetchResult(value=quote, audit=audit)
+    finally:
+        audit["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+        audit["fetched_at"] = _utc_now_iso()
+
+
+async def get_swap_quote(intent: SwapIntent) -> QuoteResponse:
+    return (await _get_swap_quote_with_audit(intent)).value
 
 
 async def tool_coordinator(intent: SwapIntent) -> ToolResponse:
@@ -251,12 +378,35 @@ async def tool_coordinator(intent: SwapIntent) -> ToolResponse:
     """
     logger.info("[Coordinator] Starting tool coordination...")
 
-    market_snapshot_task = get_market_snapshot(intent.sell_token, intent.buy_token)
-    swap_quote_task = get_swap_quote(intent)
+    market_snapshot_task = _get_market_snapshot_with_audit(intent.sell_token, intent.buy_token)
+    swap_quote_task = _get_swap_quote_with_audit(intent)
 
-    snapshot, quote = await asyncio.gather(market_snapshot_task, swap_quote_task)
+    snapshot_result, quote_result = await asyncio.gather(market_snapshot_task, swap_quote_task)
+
+    strict_failures = []
+    if _real_tools_enabled() and _real_tools_strict():
+        if snapshot_result.audit.get("resolved_source") != "coingecko":
+            strict_failures.append(
+                f"market snapshot fallback ({snapshot_result.audit.get('fallback_reason', 'unknown reason')})"
+            )
+        if quote_result.audit.get("resolved_source") != "1inch":
+            strict_failures.append(
+                f"quote fallback ({quote_result.audit.get('fallback_reason', 'unknown reason')})"
+            )
+        if strict_failures:
+            raise RuntimeError(
+                "REAL_TOOLS_STRICT enabled and external tools did not complete successfully: "
+                + "; ".join(strict_failures)
+            )
 
     logger.info("[Coordinator] Tools finished. Aggregating response.")
 
-    tool_response = ToolResponse(market_snapshot=snapshot, quote=quote)
+    tool_response = ToolResponse(
+        market_snapshot=snapshot_result.value,
+        quote=quote_result.value,
+        audit={
+            "market_snapshot": snapshot_result.audit,
+            "quote": quote_result.audit,
+        },
+    )
     return tool_response

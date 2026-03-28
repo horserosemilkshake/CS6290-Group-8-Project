@@ -49,6 +49,10 @@ TOKEN_DECIMALS: dict = {
     "DAI": 18,
 }
 
+# Quote / handoff TTLs used by planning and signer-boundary pause logic.
+QUOTE_TTL_SECONDS: int = int(os.getenv("QUOTE_TTL_SECONDS", "120"))
+WALLET_HANDOFF_TTL_SECONDS: int = int(os.getenv("WALLET_HANDOFF_TTL_SECONDS", "300"))
+
 # ── Network scope (A-01, R-17) ─────────────────────────────────────────────
 # Ethereum mainnet only for production; Sepolia for demo/test.
 _BASE_CHAIN_IDS = {1, 11155111}

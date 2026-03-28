@@ -62,7 +62,7 @@ class FastAPIAgentClient:
             return False
 
     def set_defense_config(self, config: str) -> str:
-        """Switch server defense config (bare/l1/l1l2). Returns active config."""
+        """Switch server defense config (bare/l1/l1l2/l1l2l3). Returns active config."""
         resp = requests.post(self.config_url, json={"config": config}, timeout=5)
         resp.raise_for_status()
         return resp.json()["defense_config"]

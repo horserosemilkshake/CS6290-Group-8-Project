@@ -1,59 +1,63 @@
 {
   "dataset": {
-    "name": "final_attack_dataset_v1",
-    "case_count": 100,
+    "name": "final_attack_dataset_v2",
+    "case_count": 125,
     "attack_vector_counts": {
       "direct_injection": 25,
       "indirect_or_encoded": 25,
       "memory_poisoning": 25,
-      "tool_poisoning": 25
+      "tool_poisoning": 25,
+      "none": 25
     }
   },
   "per_config": {
     "bare": {
-      "sample_size": 100,
+      "sample_size": 125,
       "reported_metrics": {
-        "asr": 0.75,
+        "asr": 0.76,
         "fp": 0.0,
-        "tr": 3.8599074999999914
+        "tr": 3.0523121
       },
       "recomputed_metrics": {
-        "asr": 0.75,
+        "asr": 0.76,
         "fp": 0.0,
-        "tr": 3.8599074999999914
+        "tr": 3.0523121
       },
       "attack_success_rate": {
-        "mean": 0.75,
-        "variance": 0.1875,
-        "sample_size": 100
+        "mean": 0.608,
+        "variance": 0.23833600000000002,
+        "sample_size": 125
       },
       "false_positive_rate": {
         "mean": 0.0,
         "variance": 0.0,
-        "sample_size": 0
+        "sample_size": 25
       },
       "duration_seconds": {
-        "mean": 2.7381465070000024,
-        "variance": 0.14097099219088047,
-        "sample_size": 100,
-        "max": 3.8599074999999914
+        "mean": 2.2163723920000002,
+        "variance": 0.07344073919730375,
+        "sample_size": 125,
+        "max": 3.0523121
       },
       "outcome_counts": {
-        "ERROR": 25,
-        "ALLOW": 75
+        "ERROR": 24,
+        "ALLOW": 101
       },
       "attack_vector_breakdown": {
         "direct_injection": {
-          "ERROR": 6,
-          "ALLOW": 19
+          "ERROR": 7,
+          "ALLOW": 18
         },
         "indirect_or_encoded": {
-          "ALLOW": 20,
-          "ERROR": 5
+          "ALLOW": 22,
+          "ERROR": 3
         },
         "memory_poisoning": {
           "ERROR": 12,
           "ALLOW": 13
+        },
+        "none": {
+          "ALLOW": 25
         },
         "tool_poisoning": {
           "ALLOW": 23,
@@ -62,36 +66,36 @@
       }
     },
     "l1": {
-      "sample_size": 100,
+      "sample_size": 125,
       "reported_metrics": {
         "asr": 0.25,
         "fp": 0.0,
-        "tr": 3.373532999999952
+        "tr": 8.619364200000007
       },
       "recomputed_metrics": {
         "asr": 0.25,
         "fp": 0.0,
-        "tr": 3.373532999999952
+        "tr": 8.619364200000007
       },
       "attack_success_rate": {
-        "mean": 0.25,
-        "variance": 0.1875,
-        "sample_size": 100
+        "mean": 0.2,
+        "variance": 0.16000000000000003,
+        "sample_size": 125
       },
       "false_positive_rate": {
         "mean": 0.0,
         "variance": 0.0,
-        "sample_size": 0
+        "sample_size": 25
       },
       "duration_seconds": {
-        "mean": 1.008210083999997,
-        "variance": 1.7144013384209167,
-        "sample_size": 100,
-        "max": 3.373532999999952
+        "mean": 1.209365952800002,
+        "variance": 1.7975778628483494,
+        "sample_size": 125,
+        "max": 8.619364200000007
       },
       "outcome_counts": {
         "REFUSE": 75,
-        "ALLOW": 25
+        "ALLOW": 50
       },
       "attack_vector_breakdown": {
         "direct_injection": {
@@ -105,6 +109,9 @@
         "memory_poisoning": {
           "REFUSE": 25
         },
+        "none": {
+          "ALLOW": 25
+        },
         "tool_poisoning": {
           "ALLOW": 20,
           "REFUSE": 5
@@ -112,37 +119,37 @@
       }
     },
     "l1l2": {
-      "sample_size": 100,
+      "sample_size": 125,
       "reported_metrics": {
-        "asr": 0.14,
+        "asr": 0.15,
         "fp": 0.0,
-        "tr": 3.6947906999999987
+        "tr": 3.390370399999995
       },
       "recomputed_metrics": {
-        "asr": 0.14,
+        "asr": 0.15,
         "fp": 0.0,
-        "tr": 3.6947906999999987
+        "tr": 3.390370399999995
       },
       "attack_success_rate": {
-        "mean": 0.14,
-        "variance": 0.1204,
-        "sample_size": 100
+        "mean": 0.12,
+        "variance": 0.1056,
+        "sample_size": 125
       },
       "false_positive_rate": {
         "mean": 0.0,
         "variance": 0.0,
-        "sample_size": 0
+        "sample_size": 25
       },
       "duration_seconds": {
-        "mean": 1.0200127139999995,
-        "variance": 1.7462091829636706,
-        "sample_size": 100,
-        "max": 3.6947906999999987
+        "mean": 1.1037156656000038,
+        "variance": 1.2247000205931249,
+        "sample_size": 125,
+        "max": 3.390370399999995
       },
       "outcome_counts": {
         "REFUSE": 75,
-        "BLOCK": 11,
-        "ALLOW": 14
+        "BLOCK": 10,
+        "ALLOW": 40
       },
       "attack_vector_breakdown": {
         "direct_injection": {
@@ -157,9 +164,68 @@
         "memory_poisoning": {
           "REFUSE": 25
         },
+        "none": {
+          "ALLOW": 25
+        },
         "tool_poisoning": {
-          "ALLOW": 13,
-          "BLOCK": 7,
+          "ALLOW": 14,
+          "BLOCK": 6,
+          "REFUSE": 5
+        }
+      }
+    },
+    "l1l2l3": {
+      "sample_size": 125,
+      "reported_metrics": {
+        "asr": 0.15,
+        "fp": 0.0,
+        "tr": 3.4917224999999235
+      },
+      "recomputed_metrics": {
+        "asr": 0.15,
+        "fp": 0.0,
+        "tr": 3.4917224999999235
+      },
+      "attack_success_rate": {
+        "mean": 0.12,
+        "variance": 0.1056,
+        "sample_size": 125
+      },
+      "false_positive_rate": {
+        "mean": 0.0,
+        "variance": 0.0,
+        "sample_size": 25
+      },
+      "duration_seconds": {
+        "mean": 1.1361117096000035,
+        "variance": 1.3073205349763224,
+        "sample_size": 125,
+        "max": 3.4917224999999235
+      },
+      "outcome_counts": {
+        "REFUSE": 75,
+        "BLOCK": 10,
+        "ALLOW": 40
+      },
+      "attack_vector_breakdown": {
+        "direct_injection": {
+          "REFUSE": 23,
+          "BLOCK": 2
+        },
+        "indirect_or_encoded": {
+          "REFUSE": 22,
+          "BLOCK": 2,
+          "ALLOW": 1
+        },
+        "memory_poisoning": {
+          "REFUSE": 25
+        },
+        "none": {
+          "ALLOW": 25
+        },
+        "tool_poisoning": {
+          "ALLOW": 14,
+          "BLOCK": 6,
           "REFUSE": 5
         }
       }
@@ -179,6 +245,12 @@
       "tr_matches": true
     },
     "l1l2": {
+      "case_count_matches_dataset": true,
+      "asr_matches": true,
+      "fp_matches": true,
+      "tr_matches": true
+    },
+    "l1l2l3": {
       "case_count_matches_dataset": true,
       "asr_matches": true,
       "fp_matches": true,

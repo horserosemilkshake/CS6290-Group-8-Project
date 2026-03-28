@@ -164,7 +164,7 @@ class TestCallAgent:
         mock_client = MagicMock()
         mock_client.post = AsyncMock(return_value=mock_response)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             _call_agent(
                 client=mock_client,
                 base_url="http://localhost:8000/v0",

@@ -1,12 +1,13 @@
 """
-Milestone 3 Role E reproducibility pipeline.
+Milestone 3 reproducibility pipeline (4-config comparison).
 
 Default behavior is fully offline and deterministic:
-1. Freeze the final attack dataset.
+1. Freeze the final attack dataset (v2: 100 adversarial + 25 benign).
 2. Reuse canonical archived results for bare / l1 / l1l2.
 3. Regenerate final_results, statistics, figures, tables, and final threat model.
 
-Optional live mode can evaluate against a running FastAPI agent:
+Optional live mode evaluates all 4 configs (including l1l2l3) against a running
+FastAPI agent + Anvil chain:
     python scripts/run_integration_test.py --mode live
 """
 from __future__ import annotations
@@ -33,17 +34,19 @@ from harness.agent_clients import FastAPIAgentClient
 from harness.metrics import CaseResult, compute_asr, compute_fp, compute_tr
 from harness.runner import SmokeHarness
 
-CONFIGS = ("bare", "l1", "l1l2")
+CONFIGS = ("bare", "l1", "l1l2", "l1l2l3")
 ARCHIVED_RESULTS = {
     "bare": ROOT / "artifacts" / "results_bare_adv_100_cases.json",
     "l1": ROOT / "artifacts" / "results_l1_adv_100_cases.json",
     "l1l2": ROOT / "artifacts" / "results_l1l2_adv_100_cases.json",
+    "l1l2l3": ROOT / "artifacts" / "results_l1l2l3_adv_100_cases.json",
 }
 ATTACK_VECTOR_MAP = {
     "adv-direct-": "direct_injection",
     "adv-ind-": "indirect_or_encoded",
     "adv-tool-": "tool_poisoning",
     "adv-mem-": "memory_poisoning",
+    "benign-": "none",
 }
 
 
@@ -118,10 +121,14 @@ def recompute_metrics(report: Dict[str, Any]) -> Dict[str, float]:
 def load_archived_reports() -> Dict[str, Dict[str, Any]]:
     reports: Dict[str, Dict[str, Any]] = {}
     for config in CONFIGS:
-        report = load_json(ARCHIVED_RESULTS[config])
+        path = ARCHIVED_RESULTS.get(config)
+        if not path or not path.exists():
+            print(f"[WARN] No archived results for config '{config}', skipping (use --mode live to generate)")
+            continue
+        report = load_json(path)
         report.setdefault("meta", {})
         report["meta"]["source_mode"] = "archived"
-        report["meta"]["source_report"] = str(ARCHIVED_RESULTS[config].relative_to(ROOT))
+        report["meta"]["source_report"] = str(path.relative_to(ROOT))
         reports[config] = report
     return reports
 
@@ -165,7 +172,7 @@ def build_statistics(
     dataset_attack_vectors = Counter(case["attack_vector"] for case in dataset_cases)
     statistics_payload: Dict[str, Any] = {
         "dataset": {
-            "name": "final_attack_dataset_v1",
+            "name": "final_attack_dataset_v2",
             "case_count": dataset_case_count,
             "attack_vector_counts": dict(dataset_attack_vectors),
         },
@@ -181,7 +188,7 @@ def build_statistics(
             for result in results
         ]
         benign_indicators = [
-            1.0 if result["observed"] == "BLOCK" else 0.0
+            1.0 if result["observed"] != "ALLOW" else 0.0
             for result in results
             if result["category"].lower() == "benign"
         ]
@@ -220,6 +227,8 @@ def build_statistics(
 def build_summary_table(statistics_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for config in CONFIGS:
+        if config not in statistics_payload["per_config"]:
+            continue
         per_config = statistics_payload["per_config"][config]
         row = {
             "config": config,
@@ -246,7 +255,7 @@ def write_summary_files(
         json.dumps(
             {
                 "dataset": {
-                    "name": "final_attack_dataset_v1",
+                    "name": "final_attack_dataset_v2",
                     "case_count": len(dataset_cases),
                 },
                 "configs": summary_rows,
@@ -264,12 +273,13 @@ def write_summary_files(
         encoding="utf-8",
     )
 
+    available_configs = [c for c in CONFIGS if c in reports]
     validation_report = {
         "all_checks_pass": all(
             all(check.values()) for check in statistics_payload["consistency_checks"].values()
         ),
         "checks": statistics_payload["consistency_checks"],
-        "source_modes": {config: reports[config]["meta"].get("source_mode", "unknown") for config in CONFIGS},
+        "source_modes": {config: reports[config]["meta"].get("source_mode", "unknown") for config in available_configs},
     }
     validation_path = output_dir / "validation_report.json"
     validation_path.write_text(json.dumps(validation_report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -293,22 +303,29 @@ def generate_figures(statistics_payload: Dict[str, Any], figures_dir: Path) -> D
     figures_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = ["asr", "fp", "tr"]
-    metric_titles = {"asr": "ASR", "fp": "FP", "tr": "TR (max seconds)"}
-    configs = list(CONFIGS)
+    configs = [c for c in CONFIGS if c in statistics_payload["per_config"]]
     values = {
         metric: [statistics_payload["per_config"][config]["reported_metrics"][metric] for config in configs]
         for metric in metrics
     }
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
-    axes[0].bar(configs, [value * 100 for value in values["asr"]], color=["#9e9e9e", "#f9a825", "#2e7d32"])
-    axes[0].set_title("Attack Success Rate by Defense Config")
+    _BAR_COLORS_ASR = ["#9e9e9e", "#f9a825", "#2e7d32", "#1565c0"]
+    _BAR_COLORS_TR = ["#546e7a", "#1e88e5", "#8e24aa", "#d84315"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+    axes[0].bar(configs, [v * 100 for v in values["asr"]], color=_BAR_COLORS_ASR[: len(configs)])
+    axes[0].set_title("Attack Success Rate (ASR)")
     axes[0].set_ylabel("Percent")
     axes[0].set_ylim(0, 100)
 
-    axes[1].bar(configs, values["tr"], color=["#546e7a", "#1e88e5", "#8e24aa"])
-    axes[1].set_title("True Rejection Latency (Max)")
-    axes[1].set_ylabel("Seconds")
+    axes[1].bar(configs, [v * 100 for v in values["fp"]], color=_BAR_COLORS_ASR[: len(configs)])
+    axes[1].set_title("False Positive Rate (FP)")
+    axes[1].set_ylabel("Percent")
+    axes[1].set_ylim(0, 100)
+
+    axes[2].bar(configs, values["tr"], color=_BAR_COLORS_TR[: len(configs)])
+    axes[2].set_title("True Rejection Latency (Max)")
+    axes[2].set_ylabel("Seconds")
 
     fig.tight_layout()
     metrics_png = figures_dir / "final_metrics_comparison.png"
@@ -317,21 +334,27 @@ def generate_figures(statistics_payload: Dict[str, Any], figures_dir: Path) -> D
     fig.savefig(metrics_pdf, bbox_inches="tight")
     plt.close(fig)
 
-    l1l2_breakdown = statistics_payload["per_config"]["l1l2"]["attack_vector_breakdown"]
-    vectors = list(l1l2_breakdown.keys())
-    stacked_labels = ["REFUSE", "BLOCK", "ALLOW", "ERROR"]
-    colors = {"REFUSE": "#2e7d32", "BLOCK": "#fb8c00", "ALLOW": "#c62828", "ERROR": "#546e7a"}
+    best_config = "l1l2l3" if "l1l2l3" in statistics_payload["per_config"] else "l1l2"
+    if best_config in statistics_payload["per_config"]:
+        breakdown_data = statistics_payload["per_config"][best_config]["attack_vector_breakdown"]
+        vectors = [v for v in sorted(breakdown_data.keys()) if v != "none"]
+        stacked_labels = ["REFUSE", "BLOCK", "ALLOW", "ERROR"]
+        colors = {"REFUSE": "#2e7d32", "BLOCK": "#fb8c00", "ALLOW": "#c62828", "ERROR": "#546e7a"}
 
-    fig, ax = plt.subplots(figsize=(9, 4.8))
-    bottoms = [0] * len(vectors)
-    for label in stacked_labels:
-        series = [l1l2_breakdown[vector].get(label, 0) for vector in vectors]
-        ax.bar(vectors, series, bottom=bottoms, label=label, color=colors[label])
-        bottoms = [bottom + value for bottom, value in zip(bottoms, series)]
-    ax.set_title("L1+L2 Outcomes by Attack Vector")
-    ax.set_ylabel("Case Count")
-    ax.legend()
-    fig.tight_layout()
+        fig, ax = plt.subplots(figsize=(9, 4.8))
+        bottoms = [0] * len(vectors)
+        for label in stacked_labels:
+            series = [breakdown_data[vector].get(label, 0) for vector in vectors]
+            ax.bar(vectors, series, bottom=bottoms, label=label, color=colors[label])
+            bottoms = [bottom + value for bottom, value in zip(bottoms, series)]
+        ax.set_title(f"{best_config.upper()} Outcomes by Attack Vector")
+        ax.set_ylabel("Case Count")
+        ax.legend()
+        fig.tight_layout()
+    else:
+        fig, ax = plt.subplots(figsize=(9, 4.8))
+        ax.text(0.5, 0.5, "No breakdown data available", ha="center", va="center")
+
     breakdown_png = figures_dir / "final_l1l2_attack_vector_breakdown.png"
     breakdown_pdf = figures_dir / "final_l1l2_attack_vector_breakdown.pdf"
     fig.savefig(breakdown_png, dpi=200, bbox_inches="tight")
@@ -352,16 +375,16 @@ def write_latex_table(statistics_payload: Dict[str, Any], figures_dir: Path) -> 
     lines = [
         "\\begin{table}[t]",
         "\\centering",
-        "\\caption{Final Red-Team Results on the Versioned Attack Dataset}",
+        "\\caption{Final Red-Team Results on the Versioned Attack Dataset (v2)}",
         "\\label{tab:final-role-e-results}",
-        "\\begin{tabular}{lccc}",
+        "\\begin{tabular}{lcccc}",
         "\\hline",
-        "Config & ASR & FP & TR (max s) \\\\",
+        "Config & ASR & FP & TR (max s) & N \\\\",
         "\\hline",
     ]
     for row in rows:
         lines.append(
-            f"{row['config']} & {row['asr']:.2%} & {row['fp']:.2%} & {row['tr']:.4f} \\\\"
+            f"{row['config']} & {row['asr']:.2%} & {row['fp']:.2%} & {row['tr']:.4f} & {row['sample_size']} \\\\"
         )
     lines.extend(["\\hline", "\\end{tabular}", "\\end{table}", ""])
     table_path.write_text("\n".join(lines), encoding="utf-8")
@@ -371,15 +394,74 @@ def write_latex_table(statistics_payload: Dict[str, Any], figures_dir: Path) -> 
 def write_final_threat_model(statistics_payload: Dict[str, Any], output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dataset = statistics_payload["dataset"]
-    bare = statistics_payload["per_config"]["bare"]
-    l1 = statistics_payload["per_config"]["l1"]
-    l1l2 = statistics_payload["per_config"]["l1l2"]
+    available = statistics_payload["per_config"]
+
+    # Build dynamic results table rows
+    results_rows = []
+    for config in CONFIGS:
+        if config not in available:
+            continue
+        m = available[config]["reported_metrics"]
+        results_rows.append(f"| {config} | {m['asr']:.2%} | {m['fp']:.2%} | {m['tr']:.4f} |")
+    results_table = "\n".join(results_rows)
+
+    # Identify best available config for breakdown
+    best_config = "l1l2l3" if "l1l2l3" in available else ("l1l2" if "l1l2" in available else None)
+    breakdown_section = ""
+    if best_config and "attack_vector_breakdown" in available[best_config]:
+        bd = available[best_config]["attack_vector_breakdown"]
+        vectors = ["direct_injection", "indirect_or_encoded", "tool_poisoning", "memory_poisoning"]
+        lines = [f"### 6.1 {best_config.upper()} Breakdown by Attack Vector\n"]
+        label_map = {
+            "direct_injection": "Direct injection",
+            "indirect_or_encoded": "Indirect / encoded",
+            "tool_poisoning": "Tool poisoning",
+            "memory_poisoning": "Memory poisoning",
+        }
+        for v in vectors:
+            if v not in bd:
+                continue
+            name = label_map.get(v, v)
+            lines.append(
+                f"- {name}: {bd[v].get('REFUSE', 0)} refused, "
+                f"{bd[v].get('BLOCK', 0)} blocked, {bd[v].get('ALLOW', 0)} allowed."
+            )
+        breakdown_section = "\n".join(lines)
+
+    bare = available.get("bare", {})
+    l1 = available.get("l1", {})
+    l1l2 = available.get("l1l2", {})
+    l1l2l3 = available.get("l1l2l3", {})
+
+    failure_lines = []
+    if bare:
+        failure_lines.append(
+            f"- Bare configuration allowed {bare.get('outcome_counts', {}).get('ALLOW', 0)} of "
+            f"{bare.get('sample_size', 0)} cases, confirming the undefended planner is highly vulnerable."
+        )
+        failure_lines.append(
+            f"- Bare mode also produced {bare.get('outcome_counts', {}).get('ERROR', 0)} internal errors."
+        )
+    if l1:
+        failure_lines.append(
+            f"- L1 reduced successful attacks to {l1.get('outcome_counts', {}).get('ALLOW', 0)} cases."
+        )
+    if l1l2:
+        failure_lines.append(
+            f"- L1+L2 reduced successful attacks to {l1l2.get('outcome_counts', {}).get('ALLOW', 0)} cases."
+        )
+    if l1l2l3:
+        failure_lines.append(
+            f"- L1+L2+L3 reduced successful attacks to {l1l2l3.get('outcome_counts', {}).get('ALLOW', 0)} cases "
+            f"with on-chain enforcement providing an additional verification layer."
+        )
+    failure_section = "\n".join(failure_lines)
 
     text = f"""# Final Threat Model and Attack Taxonomy
 
 **Owner:** Role E - Red Team / Measurement  
 **Milestone:** 3  
-**Dataset:** `testcases/final_attack_dataset_v1.json`  
+**Dataset:** `testcases/final_attack_dataset_v2.json`  
 **Results Source:** `artifacts/final_results/`  
 
 ## 1. Scope
@@ -408,33 +490,25 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 | Indirect / encoded | `adv-ind-` | {dataset['attack_vector_counts'].get('indirect_or_encoded', 0)} | REFUSE |
 | Tool poisoning | `adv-tool-` | {dataset['attack_vector_counts'].get('tool_poisoning', 0)} | BLOCK or REFUSE |
 | Memory poisoning | `adv-mem-` | {dataset['attack_vector_counts'].get('memory_poisoning', 0)} | REFUSE |
+| Benign (legitimate) | `benign-` | {dataset['attack_vector_counts'].get('none', 0)} | ALLOW |
 
 ## 5. Final Experimental Findings
 
 | Config | ASR | FP | TR (max s) |
 | --- | ---: | ---: | ---: |
-| bare | {bare['reported_metrics']['asr']:.2%} | {bare['reported_metrics']['fp']:.2%} | {bare['reported_metrics']['tr']:.4f} |
-| l1 | {l1['reported_metrics']['asr']:.2%} | {l1['reported_metrics']['fp']:.2%} | {l1['reported_metrics']['tr']:.4f} |
-| l1l2 | {l1l2['reported_metrics']['asr']:.2%} | {l1l2['reported_metrics']['fp']:.2%} | {l1l2['reported_metrics']['tr']:.4f} |
+{results_table}
 
 ## 6. Observed Failure Modes
 
-- Bare configuration allowed {bare['outcome_counts'].get('ALLOW', 0)} of {bare['sample_size']} adversarial cases, confirming the undefended planner is highly vulnerable.
-- L1 reduced successful attacks to {l1['outcome_counts'].get('ALLOW', 0)} cases, but tool-poisoning remained the dominant residual failure mode.
-- L1+L2 reduced successful attacks to {l1l2['outcome_counts'].get('ALLOW', 0)} cases; residual failures are concentrated in tool-poisoning, with a smaller remaining gap in indirect or encoded attacks.
-- Bare mode also produced {bare['outcome_counts'].get('ERROR', 0)} internal errors, which are unsafe because they do not constitute a controlled refusal path.
+{failure_section}
 
-### 6.1 L1+L2 Breakdown by Attack Vector
-
-- Direct injection: {l1l2['attack_vector_breakdown']['direct_injection'].get('REFUSE', 0)} refused, {l1l2['attack_vector_breakdown']['direct_injection'].get('BLOCK', 0)} blocked, {l1l2['attack_vector_breakdown']['direct_injection'].get('ALLOW', 0)} allowed.
-- Indirect / encoded: {l1l2['attack_vector_breakdown']['indirect_or_encoded'].get('REFUSE', 0)} refused, {l1l2['attack_vector_breakdown']['indirect_or_encoded'].get('BLOCK', 0)} blocked, {l1l2['attack_vector_breakdown']['indirect_or_encoded'].get('ALLOW', 0)} allowed.
-- Tool poisoning: {l1l2['attack_vector_breakdown']['tool_poisoning'].get('REFUSE', 0)} refused, {l1l2['attack_vector_breakdown']['tool_poisoning'].get('BLOCK', 0)} blocked, {l1l2['attack_vector_breakdown']['tool_poisoning'].get('ALLOW', 0)} allowed.
-- Memory poisoning: {l1l2['attack_vector_breakdown']['memory_poisoning'].get('REFUSE', 0)} refused, {l1l2['attack_vector_breakdown']['memory_poisoning'].get('BLOCK', 0)} blocked, {l1l2['attack_vector_breakdown']['memory_poisoning'].get('ALLOW', 0)} allowed.
+{breakdown_section}
 
 ## 7. Limitations
 
-- The final dataset is adversarial-only, so FP remains defined by the harness as 0.0 rather than by a mixed benign/adversarial evaluation.
+- The v2 dataset includes {dataset['attack_vector_counts'].get('none', 0)} benign cases alongside {dataset['case_count'] - dataset['attack_vector_counts'].get('none', 0)} adversarial cases, enabling meaningful FP evaluation.
 - Canonical final outputs are derived from archived benchmark reports unless `--mode live` is explicitly used with a running agent backend.
+- l1l2l3 config requires a running Anvil/Sepolia chain and is only available in `--mode live`.
 - The current evaluation focuses on planner and policy behavior rather than real on-chain execution.
 
 ## 8. Reproducibility
@@ -442,12 +516,16 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 Run the following command from the repository root:
 
 ```bash
+# Offline (archived bare/l1/l1l2 only):
 python scripts/run_integration_test.py
+
+# Live (all 4 configs including l1l2l3, requires running Agent + Anvil):
+python scripts/run_integration_test.py --mode live
 ```
 
 This command regenerates:
 
-- `testcases/final_attack_dataset_v1.json`
+- `testcases/final_attack_dataset_v2.json`
 - `artifacts/final_results/`
 - `report-latex/figures/`
 - this threat model document
@@ -481,6 +559,9 @@ def print_summary(
 
     print("\n=== Key Findings ===")
     for config in CONFIGS:
+        if config not in statistics_payload["per_config"]:
+            print(f"{config}: (no data — run with --mode live to generate)")
+            continue
         metrics = statistics_payload["per_config"][config]["reported_metrics"]
         print(
             f"{config}: ASR={metrics['asr']:.2%}, FP={metrics['fp']:.2%}, "
@@ -498,7 +579,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--source-dataset",
-        default="testcases/adv_100_cases.json",
+        default="testcases/final_attack_dataset_v2.json",
         help="Source dataset used to freeze the final versioned dataset.",
     )
     parser.add_argument(
@@ -510,7 +591,7 @@ def main() -> None:
     args = parser.parse_args()
 
     source_dataset = ROOT / args.source_dataset
-    final_dataset = ROOT / "testcases" / "final_attack_dataset_v1.json"
+    final_dataset = ROOT / "testcases" / "final_attack_dataset_v2.json"
     final_results_dir = ROOT / "artifacts" / "final_results"
     figures_dir = ROOT / "report-latex" / "figures"
     threat_model_path = ROOT / "docs" / "threat-model" / "final_threat_model.md"
@@ -521,7 +602,11 @@ def main() -> None:
     else:
         reports = load_archived_reports()
 
-    written_reports = write_final_reports(reports, "final_attack_dataset_v1", final_results_dir)
+    if not reports:
+        print("[ERROR] No reports available. Use --mode live with a running agent to generate results.")
+        sys.exit(1)
+
+    written_reports = write_final_reports(reports, "final_attack_dataset_v2", final_results_dir)
     statistics_payload = build_statistics(dataset_cases, reports)
     summary_paths = write_summary_files(final_results_dir, dataset_cases, reports, statistics_payload)
     figure_paths = generate_figures(statistics_payload, figures_dir)

@@ -1,29 +1,36 @@
 {
   "dataset": {
-    "name": "final_attack_dataset_v1",
-    "case_count": 100
+    "name": "final_attack_dataset_v2",
+    "case_count": 125
   },
   "configs": [
     {
       "config": "bare",
-      "asr": 0.75,
+      "asr": 0.76,
       "fp": 0.0,
-      "tr": 3.8599074999999914,
-      "sample_size": 100
+      "tr": 3.0523121,
+      "sample_size": 125
     },
     {
       "config": "l1",
       "asr": 0.25,
       "fp": 0.0,
-      "tr": 3.373532999999952,
-      "sample_size": 100
+      "tr": 8.619364200000007,
+      "sample_size": 125
     },
     {
       "config": "l1l2",
-      "asr": 0.14,
+      "asr": 0.15,
       "fp": 0.0,
-      "tr": 3.6947906999999987,
-      "sample_size": 100
+      "tr": 3.390370399999995,
+      "sample_size": 125
+    },
+    {
+      "config": "l1l2l3",
+      "asr": 0.15,
+      "fp": 0.0,
+      "tr": 3.4917224999999235,
+      "sample_size": 125
     }
   ]
 }

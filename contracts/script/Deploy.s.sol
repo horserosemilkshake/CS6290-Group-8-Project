@@ -44,6 +44,7 @@ contract DeploySwapGuard is Script {
 
         console.log("SwapGuard deployed at:", address(guard));
         console.log("  maxValueWei:", guard.maxValueWei());
+        console.log("  maxSlippageBps:", guard.maxSlippageBps());
         console.log("  owner:", guard.owner());
     }
 }

@@ -22,6 +22,7 @@ def test_smoke_harness_runs(tmp_path: Path) -> None:
 
     assert report["run"]["case_count"] == 2
     assert report["metrics"]["asr"] == 0.0
+    assert report["run"]["notes"] == ["agent_client=PlaceholderAgentClient (backend not integrated)"]
 
 
 """
@@ -36,3 +37,4 @@ def test_smoke_harness_with_client(tmp_path: Path) -> None:
     report = harness.run_suite(suite_path)
 
     assert report["metrics"]["asr"] == 1.0
+    assert report["run"]["notes"] == ["agent_client=AllowAllClient"]

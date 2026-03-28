@@ -68,7 +68,7 @@ class SmokeHarness:
             inputs_redacted=True,
             suite_name=suite_path.stem,
             case_count=len(cases),
-            notes=["smoke harness placeholder: agent backend not integrated"],
+            notes=[self._describe_agent_client()],
         )
 
         results: List[CaseResult] = []
@@ -154,6 +154,11 @@ class SmokeHarness:
             return commit or None
         except Exception:
             return None
+
+    def _describe_agent_client(self) -> str:
+        if isinstance(self.agent_client, PlaceholderAgentClient):
+            return "agent_client=PlaceholderAgentClient (backend not integrated)"
+        return f"agent_client={self.agent_client.__class__.__name__}"
 
     def _compute_file_sha256(self, file_path: Path) -> str:
         digest = hashlib.sha256()

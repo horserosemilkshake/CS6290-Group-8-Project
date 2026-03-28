@@ -1,145 +1,158 @@
-# CS6290 Group 8 — Adversarially-Robust DeFi Swap Agent
+# CS6290 Group 8 - Adversarially-Robust DeFi Swap Agent
 
-**Last Updated:** March 13, 2026
-
-An AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, hardened with layered guardrails against prompt injection, excessive agency, and economic attacks.
+AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, with layered guardrails against prompt injection, excessive agency, and unsafe swap parameters.
 
 ## Architecture
 
-```
-User ─► Telegram Bot ─► FastAPI Agent API ─► L1 ─► LLM ─► Tool Coordinator ─► L2 Policy Engine ─► [L3 On-Chain] ─► TxPlan
-```
+`User -> Telegram Bot -> FastAPI Agent API -> L1 -> LLM -> Tool Coordinator -> L2 -> [L3 eth_call] -> TxPlan`
 
 | Component | Location | Description |
-|-----------|----------|-------------|
-| **Agent API** | `agent_client/` | FastAPI server; LLM intent parsing (DeepSeek / OpenAI-compatible) with mock DEX tool coordinator |
-| **L1 Guardrails** | `agent_client/src/agents/` | Input sanitisation (injection detection, encoding attacks, length limits) + output validation |
-| **L2 Policy Engine** | `policy_engine/` | Deterministic rules: token/router allowlist, slippage, value cap, unlimited approval, tx structure, chain scope |
-| **L3 On-Chain** | `contracts/` + `policy_engine/l3_validator.py` | SwapGuard contract (R-01, R-02, R-04) via `eth_call`; optional, requires Anvil |
-| **Telegram Bot** | `telegram_bot/` | Natural-language front-end; group-chat privacy (ALLOW details sent via owner DM only) |
-| **Test Harness** | `harness/` | Automated red-team runner with ASR / FP / TR metrics |
-| **Test Cases** | `testcases/` | 100 adversarial cases (`adv_100_cases.json`) covering injection, social engineering, encoding attacks, logic overrides |
+| --- | --- | --- |
+| Agent API | `agent_client/` | FastAPI backend for planning requests |
+| L1 Guardrails | `agent_client/src/agents/` | Input sanitization and output validation |
+| L2 Policy Engine | `policy_engine/` | Deterministic router/token/slippage/value checks |
+| L3 On-Chain | `contracts/` + `policy_engine/l3_validator.py` | `SwapGuard` contract validated via `eth_call` |
+| Telegram Bot | `telegram_bot/` | Optional chat frontend |
+| Harness | `harness/` + `scripts/` | ASR / FP / TR evaluation pipeline |
+| Report Assets | `report-latex/` | Final paper source, figures, tables |
 
 ## Defense Configurations
 
-| Config | Flag | Guardrails |
-|--------|------|------------|
-| Config 0 (bare) | `DEFENSE_CONFIG=bare` | None — baseline |
-| Config 1 (L1) | `DEFENSE_CONFIG=l1` | L1 input/output guardrails only |
-| Config 2 (L1+L2) | `DEFENSE_CONFIG=l1l2` | L1 + L2 policy engine (default) |
-| Config 3 (L1+L2+L3) | `DEFENSE_CONFIG=l1l2l3` | L1 + L2 + L3 on-chain (requires local Anvil + `SWAP_GUARD_ADDRESS`) |
+| Config | Env Value | Meaning |
+| --- | --- | --- |
+| Config0 | `bare` | No guardrails |
+| Config1 | `l1` | L1 only |
+| Config2 | `l1l2` | L1 + L2 |
+| Config3 | `l1l2l3` | L1 + L2 + L3 (`SwapGuard`) |
 
-**Latest 100-case adversarial results:**
+## Current Canonical Results
 
-| Config | ASR ↓ | FP | TR (max) |
-|--------|-------|----|----------|
-| bare | 75 % | 0 % | 3.86 s |
-| l1 | 25 % | 0 % | 3.37 s |
-| l1l2 | 14 % | 0 % | 3.69 s |
+Latest `v2` live comparison on 125 cases:
+
+| Config | ASR | FP | TR (max) |
+| --- | ---: | ---: | ---: |
+| `bare` | 76.00% | 0.00% | 3.0523s |
+| `l1` | 25.00% | 0.00% | 8.6194s |
+| `l1l2` | 15.00% | 0.00% | 3.3904s |
+| `l1l2l3` | 15.00% | 0.00% | 3.4917s |
+
+Artifacts live under `artifacts/final_results/`.
 
 ## Quick Start
 
 ### 1. Install dependencies
 
-```bash
+```powershell
 pip install -r agent_client/src/agent_requirements.txt
 pip install -r requirements-dev.txt
 ```
 
 ### 2. Configure environment
 
-Copy the example and fill in your keys — **one `.env` file in the project root** covers both Agent API and Telegram Bot:
+Create a project-root `.env` from [`.env.example`](./.env.example).
 
-```bash
-cp .env.example .env
-```
-
-Required variables:
+Minimum variables:
 
 ```dotenv
-OPENAI_API_KEY=sk-your-key-here          # LLM API key (DeepSeek, OpenAI, etc.)
-OPENAI_BASE_URL=https://api.deepseek.com  # optional: custom endpoint
-LLM_MODEL_NAME=deepseek-chat              # optional: model name
-
-TELEGRAM_BOT_TOKEN=123456:ABC-...         # from @BotFather (for Telegram bot only)
-OWNER_TELEGRAM_ID=123456789               # your numeric Telegram user ID
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_BASE_URL=https://api.deepseek.com
+LLM_MODEL_NAME=deepseek-chat
+DEFENSE_CONFIG=l1l2
+REAL_TOOLS=false
 ```
 
-### 3. Start the Agent API server
+### 3. Start the agent API
 
-```bash
+```powershell
+$env:PYTHONPATH = "."
 python -m uvicorn agent_client.src.main:app --port 8000
 ```
 
-The API is available at `http://127.0.0.1:8000/v0/`. Key endpoints:
+### 4. Run tests
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v0/agent/plan` | Submit a swap request |
-| GET | `/v0/health` | Health check |
-| GET / POST | `/v0/defense-config` | View / switch defense config |
-
-### 4. Start the Telegram Bot (optional)
-
-Requires the Agent API server to be running first:
-
-```bash
-python -m telegram_bot.main
+```powershell
+python -m pytest tests -v
 ```
 
-### 5. Run unit tests
+## Reproducibility Pipeline
 
-```bash
-python -m pytest tests/ -v
+### Archived / deterministic
+
+```powershell
+$env:PYTHONPATH = "."
+python scripts/run_integration_test.py
 ```
 
-### 6. Run the red-team harness
+### Live 4-config comparison
 
-With the Agent API server running:
+```powershell
+./scripts/start-chain.sh local
 
-```bash
-# Single config (default: l1l2)
-python scripts/run_integration_test.py testcases/adv_100_cases.json --config l1l2
+$env:PYTHONPATH = "."
+$env:REAL_TOOLS = "false"
+$env:DEFENSE_CONFIG = "bare"
+$env:SWAP_GUARD_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+python -m uvicorn agent_client.src.main:app --port 8000
 
-# All three configs with comparison report
-python scripts/run_integration_test.py testcases/adv_100_cases.json --all-configs
+$env:PYTHONPATH = "."
+python scripts/run_integration_test.py --mode live
 ```
 
-Results and artifacts are saved to `artifacts/`.
+This regenerates:
 
-### 7. Run with L3 on-chain (optional)
+- `artifacts/final_results/`
+- `report-latex/figures/`
+- `docs/threat-model/final_threat_model.md`
 
-To enable Config3 (L1+L2+L3): install [Foundry](https://getfoundry.sh), then from the project root:
+## Real Tools Integration Smoke
 
-```bash
-./scripts/start-chain.sh local   # start Anvil, deploy SwapGuard, copy printed address
-# In .env: DEFENSE_CONFIG=l1l2l3, SWAP_GUARD_ADDRESS=<that address>
+Use this only for integration validation or live demo rehearsals, not for canonical benchmark numbers.
+
+Server:
+
+```powershell
+$env:PYTHONPATH = "."
+$env:REAL_TOOLS = "true"
+$env:REAL_TOOLS_STRICT = "true"
+$env:ONEINCH_API_KEY = "your-1inch-api-key"
+$env:COINGECKO_DEMO_API_KEY = "your-coingecko-demo-key"
 python -m uvicorn agent_client.src.main:app --port 8000
 ```
 
-See `contracts/README.md` for details.
+Smoke test:
 
-## Project Structure
+```powershell
+$env:PYTHONPATH = "."
+python scripts/run_real_tools_smoke.py --config l1l2
+```
 
+`REAL_TOOLS_STRICT=true` is important: the backend will fail closed instead of silently falling back to mock quotes.
+
+Guarded benchmark:
+
+```powershell
+$env:PYTHONPATH = "."
+python scripts/run_real_tools_benchmark.py --config l1l2 --repeat 2
 ```
-├── agent_client/          # FastAPI agent (LLM + tools + L1 guardrails)
-│   └── src/
-│       ├── agents/        # L1Agent coordinator + guardrails
-│       ├── api/           # FastAPI routes
-│       ├── config/        # Pydantic settings
-│       ├── llm/           # LLM planner (real API + mock fallback)
-│       ├── models/        # Pydantic schemas
-│       ├── tools/         # Tool coordinator (mock DEX quotes)
-│       └── utils/         # Logger
-├── policy_engine/         # L2 policy rules + L3 validator (eth_call wrapper)
-├── contracts/             # L3 SwapGuard (Foundry: anvil, forge, cast)
-├── telegram_bot/          # Telegram front-end
-├── harness/               # Test harness + metrics (ASR/FP/TR)
-├── testcases/             # Adversarial & benign test suites
-├── scripts/               # Integration test runners, start-chain.sh (local/fork)
-├── tests/                 # Unit tests (pytest)
-├── artifacts/             # Run results & artifacts
-├── docs/                  # Spec, threat model, project management
-├── .env.example           # Environment variable template
-└── requirements-dev.txt   # Dev/test dependencies
-```
+
+This writes a small live benchmark artifact under `artifacts/real_tools_benchmark/`. It is useful for integration validation, but it is not the canonical reproducible experiment path.
+
+## Demo Tips
+
+- `GET /v0/health` now reports `defense_config` and tool runtime status.
+- `GET /v0/health` also reports wallet-bridge runtime state for signer-boundary demos.
+- Real-tool responses now carry `tool_audit` metadata in `tx_plan`, including source, endpoint, latency, and fallback reason.
+- `TxPlan` now includes `slippage_bounds`, `quote_validity`, and `wallet_handoff`, so demos can show quote freshness and explicit owner-action pause.
+- For a stable presentation, keep the main benchmark on `REAL_TOOLS=false` and use `scripts/run_real_tools_smoke.py` as the live external-integration check.
+
+## Key Paths
+
+| Path | Purpose |
+| --- | --- |
+| `testcases/final_attack_dataset_v2.json` | Final 125-case evaluation dataset |
+| `testcases/real_tools_smoke_cases.json` | Small benign suite for real API smoke checks |
+| `scripts/run_integration_test.py` | Main reproducibility pipeline |
+| `scripts/run_real_tools_smoke.py` | Real CoinGecko + 1inch smoke test |
+| `scripts/run_real_tools_benchmark.py` | Guarded live benchmark for real-tool integration |
+| `report-latex/CS6290-project-template.tex` | Report source |
+| `docs/specification/` | Requirements and traceability source documents |
