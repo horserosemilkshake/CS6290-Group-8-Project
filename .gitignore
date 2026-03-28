@@ -3,6 +3,8 @@ artifacts/*
 !artifacts/results_l1_adv_100_cases.json
 !artifacts/results_l1l2_adv_100_cases.json
 !artifacts/three_config_comparison_adv_100_cases.json
+!artifacts/final_results/
+!artifacts/final_results/*
 .vscode/
 docs_wren/
 __pycache__/

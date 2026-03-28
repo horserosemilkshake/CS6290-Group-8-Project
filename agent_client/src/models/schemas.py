@@ -3,6 +3,7 @@ Data model definitions - All request and response structures
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 from datetime import datetime
 
 
@@ -42,6 +43,7 @@ class TxData(BaseModel):
     to: str
     data: str
     value: str
+    model_config = ConfigDict(extra="ignore")
 
 
 class QuoteResponse(BaseModel):
@@ -50,12 +52,14 @@ class QuoteResponse(BaseModel):
     gas_price_gwei: str
     estimated_gas: str
     tx: TxData
+    model_config = ConfigDict(extra="ignore")
 
 
 class ToolResponse(BaseModel):
     """Aggregated response from all tools."""
     market_snapshot: Dict[str, float]
     quote: QuoteResponse
+    model_config = ConfigDict(extra="ignore")
 
 
 # ============ Agent -> Quote Tool ============

@@ -298,7 +298,18 @@ class L1Agent:
 
             # ========== Step 5: L2 Policy Engine - Deterministic policy check ==========
             if enable_l2:
-                policy_response = evaluate_policy(swap_intent, tool_response)
+                # Normalize/adapt intent/tool_response for L2 requirements
+                norm_resp = self._normalize_for_l2(request_id, swap_intent, tool_response)
+                if isinstance(norm_resp, PlanResponse):
+                    # _normalize_for_l2 decided this should be blocked
+                    return norm_resp
+
+                # Call policy engine in a fail-safe wrapper: any exception => BLOCKED_BY_POLICY
+                try:
+                    policy_response = evaluate_policy(swap_intent, tool_response)
+                except Exception as e:
+                    logger.error(f"[L2] Policy evaluation error for request {request_id}: {str(e)}")
+                    return self._error_response(request_id, "BLOCKED_BY_POLICY", "Policy evaluation error: failed to evaluate policy")
             else:
                 policy_response = {"decision": "ALLOW", "violations": [], "checked_at": None}
 
@@ -412,6 +423,68 @@ class L1Agent:
             if len(calldata) > 20:
                 sanitized["transaction_calldata_preview"] = calldata[:10] + "..." + calldata[-6:]
         return sanitized
+
+    def _normalize_for_l2(self, request_id: str, intent: SwapIntent, tool_response: "ToolResponse"):
+        """Ensure the structures expected by the L2 policy engine are present and well-typed.
+
+        Returns None on success, or a PlanResponse (BLOCKED_BY_POLICY) when normalization
+        determines the request must be blocked (missing critical fields).
+        """
+        try:
+            # Normalize market_snapshot: uppercase token symbols, ensure float values
+            raw_ms = getattr(tool_response, "market_snapshot", None) or {}
+            norm_ms: Dict[str, float] = {}
+            for k, v in raw_ms.items():
+                try:
+                    val = float(v)
+                except Exception:
+                    val = 0.0
+                norm_ms[str(k).upper()] = val
+
+            # Ensure sell/buy tokens exist in snapshot (use minimal fallback 0.0)
+            for tk in (intent.sell_token, intent.buy_token):
+                if not tk:
+                    continue
+                if tk.upper() not in norm_ms:
+                    logger.info(f"[L2] market_snapshot missing price for {tk}, inserting fallback 0.0")
+                    norm_ms[tk.upper()] = 0.0
+
+            tool_response.market_snapshot = norm_ms
+
+            # Ensure quote.estimated_gas exists (policy checks getattr(...))
+            quote = getattr(tool_response, "quote", None)
+            if quote is None:
+                reason = "Missing quote required by policy engine"
+                logger.warning(f"[L2] {reason} for request {request_id}")
+                return self._error_response(request_id, "BLOCKED_BY_POLICY", reason)
+
+            if not hasattr(quote, "estimated_gas") or quote.estimated_gas in (None, ""):
+                # Provide a minimal placeholder so L2 sees the field
+                quote.estimated_gas = "0"
+
+            # Ensure tx fields exist and are non-empty strings
+            tx = getattr(quote, "tx", None)
+            if not tx:
+                reason = "Quote missing tx object required by L2 policy"
+                logger.warning(f"[L2] {reason} for request {request_id}")
+                return self._error_response(request_id, "BLOCKED_BY_POLICY", reason)
+
+            missing = []
+            for fld in ("to", "data", "value"):
+                v = getattr(tx, fld, None)
+                if v is None or (isinstance(v, str) and not v.strip()):
+                    missing.append(fld)
+
+            if missing:
+                reason = f"Quote.tx missing required fields: {', '.join(missing)}"
+                logger.warning(f"[L2] {reason} for request {request_id}")
+                return self._error_response(request_id, "BLOCKED_BY_POLICY", reason)
+
+            # All good
+            return None
+        except Exception as e:
+            logger.error(f"[L2] Normalization error for request {request_id}: {str(e)}")
+            return self._error_response(request_id, "BLOCKED_BY_POLICY", "Normalization error before policy evaluation")
     
     def _create_summary(self, intent: SwapIntent, quote: "QuoteResponse") -> str:
         """Create transaction summary (no sensitive information)"""
