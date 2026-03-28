@@ -2,6 +2,13 @@
 
 AI agent that converts natural-language cryptocurrency swap requests into unsigned transaction plans, with layered guardrails against prompt injection, excessive agency, and unsafe swap parameters.
 
+This project intentionally favors a small, well-tested security envelope over a
+larger but weakly verified feature surface. In particular, the current MVP
+supports plain-language swap intents and rejects untrusted execution-control
+overrides such as manual slippage, router, recipient, deadline, gas, or
+user-supplied price directives unless they are added later with their own
+verified normalization and policy path.
+
 ## Architecture
 
 `User -> Telegram Bot -> FastAPI Agent API -> L1 -> LLM -> Tool Coordinator -> L2 -> [L3 eth_call] -> TxPlan`
@@ -16,6 +23,13 @@ AI agent that converts natural-language cryptocurrency swap requests into unsign
 | Harness | `harness/` + `scripts/` | ASR / FP / TR evaluation pipeline |
 | Report Assets | `report-latex/` | Final paper source, figures, tables |
 
+## Security Posture
+
+- Plain swap intents are supported: token pair, amount, and chain scope.
+- Unsafe request-side execution overrides are rejected by design.
+- `TxPlan` remains unsigned and pauses at an explicit owner-action boundary.
+- L3 is used as an additional mirror of deterministic checks, not as a reason to weaken L1/L2.
+
 ## Defense Configurations
 
 | Config | Env Value | Meaning |
@@ -27,7 +41,7 @@ AI agent that converts natural-language cryptocurrency swap requests into unsign
 
 ## Current Canonical Results
 
-Latest `v2` live comparison on 125 cases:
+Latest checked-in `v2` comparison artifact on 125 cases:
 
 | Config | ASR | FP | TR (max) |
 | --- | ---: | ---: | ---: |
@@ -37,6 +51,9 @@ Latest `v2` live comparison on 125 cases:
 | `l1l2l3` | 15.00% | 0.00% | 3.4917s |
 
 Artifacts live under `artifacts/final_results/`.
+
+If you change guardrails or policy logic, treat these numbers as stale until
+you rerun the final pipeline and refresh the committed artifacts.
 
 ## Quick Start
 
@@ -76,6 +93,11 @@ python -m pytest tests -v
 
 ## Reproducibility Pipeline
 
+The final benchmark dataset is fixed at
+`testcases/final_attack_dataset_v2.json`. For final reporting, prefer freezing
+the dataset and rerunning the pipeline instead of mutating the benchmark cases
+to chase better metrics.
+
 ### Archived / deterministic
 
 ```powershell
@@ -103,6 +125,29 @@ This regenerates:
 - `artifacts/final_results/`
 - `report-latex/figures/`
 - `docs/threat-model/final_threat_model.md`
+
+## Presentation Paths
+
+For the final presentation, use two demo paths:
+
+1. `Sepolia` as the preferred public-chain demo path
+2. `Anvil local` as the fast, reproducible fallback path
+
+Why both:
+
+- `Sepolia` is better for credibility because the audience can inspect the deployed contract and calls on a public testnet.
+- `Anvil local` is better for rehearsal reliability and last-minute recovery if RPC, faucet, or public-network issues appear.
+
+Recommended presentation split:
+
+- Main benchmark story: deterministic mode with committed artifacts
+- Main live demo: `Sepolia`
+- Fallback demo: `Anvil local`
+
+Detailed operator steps live in:
+
+- [`docs/project-management/demo-runbook.md`](./docs/project-management/demo-runbook.md)
+- [`docs/project-management/final-readiness-audit.md`](./docs/project-management/final-readiness-audit.md)
 
 ## Real Tools Integration Smoke
 
@@ -144,6 +189,7 @@ This writes a small live benchmark artifact under `artifacts/real_tools_benchmar
 - Real-tool responses now carry `tool_audit` metadata in `tx_plan`, including source, endpoint, latency, and fallback reason.
 - `TxPlan` now includes `slippage_bounds`, `quote_validity`, and `wallet_handoff`, so demos can show quote freshness and explicit owner-action pause.
 - For a stable presentation, keep the main benchmark on `REAL_TOOLS=false` and use `scripts/run_real_tools_smoke.py` as the live external-integration check.
+- For the final live demo, prefer `Sepolia` first and keep `Anvil local` ready as a fallback.
 
 ## Key Paths
 
