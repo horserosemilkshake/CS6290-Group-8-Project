@@ -51,11 +51,17 @@ def format_allow(data: Dict[str, Any]) -> str:
     sell_amount_raw = intent.get("sell_amount", "0")
     buy_amount_raw = quote.get("to_token_amount", "?")
 
-    # Human-readable sell amount (assume 18 decimals for display)
-    try:
-        sell_display = f"{int(sell_amount_raw) / 1e18:.6g}"
-    except (ValueError, TypeError):
-        sell_display = sell_amount_raw
+    # Human-readable amounts — use per-token decimal precision.
+    _DECIMALS = {"USDC": 6, "USDT": 6, "WBTC": 8}
+
+    def _humanize(raw: str, token: str) -> str:
+        decimals = _DECIMALS.get(token.upper(), 18)
+        try:
+            return f"{int(raw) / 10**decimals:.6g}"
+        except (ValueError, TypeError):
+            return raw
+
+    sell_display = _humanize(sell_amount_raw, sell)
 
     lines = [
         "✅ Transaction Plan Ready",
@@ -63,10 +69,7 @@ def format_allow(data: Dict[str, Any]) -> str:
     ]
 
     if buy_amount_raw != "?":
-        try:
-            buy_display = f"{int(buy_amount_raw) / 1e6:.6g}" if buy in ("USDC", "USDT") else f"{int(buy_amount_raw) / 1e18:.6g}"
-        except (ValueError, TypeError):
-            buy_display = buy_amount_raw
+        buy_display = _humanize(buy_amount_raw, buy)
         lines.append(f"Expected output: ~{buy_display} {buy}")
 
     gas_gwei = quote.get("gas_price_gwei", "")
