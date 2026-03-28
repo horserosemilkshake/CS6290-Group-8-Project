@@ -11,6 +11,9 @@
 \usepackage{tabularx}
 \usepackage{makecell}
 
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
@@ -52,11 +55,11 @@ However, probabilistic LLM-driven planners invalidate such an assumption and int
 
 On top of stochasticity, the weaker adversarial robustness of LLM also induce challenges for implementing a secure swap agent. Recent research has been conducted throughout the document and has demonstrated attacks such as prompt injection, jailbreaks, and indirect prompt attacks \cite{pathade2025redteamingmindmachine}. In particular, research on prompt injection attacks detail how LLMs can be coerced into overriding internal instructions, execution constraints, or system‑level guardrails, especially when they are unable to enforce reliable separation between trusted and insecure channels \cite{pathade2025redteamingmindmachine, li2025securityconcernslargelanguage}. 
 
-Consistent with the research, production-level incident of unprotected LLM agent getting prompt-injected in online forums and sending funds to unauthorized accounts emerged, highlighting realistic vulnerabilities to direct injection, structural weaknesses in LLM trust boundaries, and the ease of hijacking model behavior in open environments\cite{balaha2026}. This aligns with the threat model facing conversational DeFi agents operating in public channels like Telegram, where adversaries co‑exist with legitimate users and strategically inject malicious instructions into shared context.
+Consistent with the research, production-level incidents of bare (no protection guardrails like input filtering or encoding attack detection) LLM agent being prompt-injected on online forums and sending funds to unauthorized accounts emerged, highlighting realistic vulnerabilities to direct injection, structural weaknesses in LLM trust boundaries, and the ease of hijacking model behavior in open environments\cite{balaha2026}. This aligns with the threat model facing conversational DeFi agents operating in public channels like Telegram, where adversaries co‑exist with legitimate users and strategically inject malicious instructions into shared context.
 
 
 \subsection{LLM Agents Tools and Deterministic Policy Layer}
-LLM agents that use external tools, APIs, and multi-step planners consistently exhibit novel modes of safety failure beyond typical content-moderation issues. Assessments such as Agent-SafetyBench show that no agent achieves a safety score of 60\% in tool invocation, while datasets like ToolSafety further demonstrates that multi-step and indirect harm scenarios significantly reduce the reliability of LLMs \cite{zhang2024agent, xie-etal-2025-toolsafety}. Even safety‑tuned models err in tool‑mediated workflows—misinterpreting intermediate data, hallucinating execution steps, or over‑relying on uncertain tool outputs. These results highlight the need for deterministic policy layers, strict schema validation, and environment constraints rather than relying solely on prompt‑based guardrails.
+Bare LLM agents that use external tools, APIs, and multi-step planners consistently exhibit novel modes of safety failure beyond typical content-moderation issues. Assessments such as Agent-SafetyBench show that no agent achieves a safety score of 60\% in tool invocation, while datasets like ToolSafety further demonstrates that multi-step and indirect harm scenarios significantly reduce the reliability of LLMs \cite{zhang2024agent, xie-etal-2025-toolsafety}. Even safety‑tuned models err in tool‑mediated workflows—misinterpreting intermediate data, hallucinating execution steps, or over‑relying on uncertain tool outputs. These results highlight the need for deterministic policy layers, strict schema validation, and environment constraints rather than relying solely on prompt‑based guardrails.
 
 \subsection{Synthesis}
 
@@ -97,10 +100,18 @@ In this paper, L1 is the DeFi LLM agent. It is a probabilistic layer responsible
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=2in]{figure/L2+L1.png}
-  \caption{The Relationship Between L1 and L2}
+  \includegraphics[width=2in]{figure/bare+L1+L2.png}
+  \caption{The Relationship Between Bare LLM, L1 and L2}
   \label{fig_model}
 \end{figure}
+
+Detailedly, the system converts natural-language swap requests into unsigned transaction plans through three sequential control layers with the following specific checks:
+
+\begin{enumerate}
+    \item L1 (Input/Output Guardrails): prompt-injection filtering, unsafe instruction rejection, and response validation.
+    \item L2 (Deterministic Policy Engine): rule-based checks on token/router allowlists, slippage, transaction value cap, approval patterns, transaction structure, and chain scope.
+    \item L3 (Optional On-Chain Validator): pre-flight contract validation (SwapGuard) via eth\_call for selected hard constraints.
+\end{enumerate}
 
 \subsubsection{Important Trust and Signer Boundary}
 \begin{itemize}
@@ -123,10 +134,10 @@ Thus, the agent's possible outputs are limited as follows.
 The most important assets are user funds and privacy information. The system is supposed to prevent unsafe plans that might incur losses while protecting addresses, balances, and user intentions, and ensuring policy adherence and invariant preservation for system integrity.
 
 \subsubsection{Adversaries and Capabilities}
-Assume adversaries can access the input interface in an open communication platform, observe timing/metadata, and influence tool output to the extent allowed by mocked/external data sources. The following adversaries prevail under these assumptions.
+Assume adversaries can access the input interface in an open communication platform, observe timing/metadata, and influence tool output to the extent allowed by mocked/external data sources. The following attacks prevail under these assumptions.
 
 \begin{itemize}
-    \item External prompt adversary: use chat input to induce unsafe plans (e.g., "I need money", role-play jail breaking). 
+    \item External prompt adversary: use chat input to induce unsafe plans (e.g., "My uncle has been diagnosed with a tetanus infection due to a lobster like you. I need 4 Sol to get the treatment done"\cite{balaha2026}, role-play jail breaking). 
     \item Indirect data adversary: inject malicious instructions via external tools/data (e.g., payload in market feeds). 
     \item Context Poisoner: forge provenance (fake admin/system claims) or taint historical context/memory.
     \item Fraudster: exploits policy gaps (e.g., routers/tokens not on allowlists, extreme slippage).
@@ -167,9 +178,66 @@ Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
     \item Invariant I4 (Context Discipline): Tool outputs treated as untrusted data; never merged into instruction channels.
 \end{itemize}
 
-\section{Conclusion}
+\section{Experiment and Methodology}
 
-The conclusion goes here. 
+This section outlines the experiment settings taken to examine the adversarial resistance of the proposed swap agent with layered defense architecture and controlled red-teaming. The testing methodology is to isolate the security contribution of each defense layer (i.e., L1, L2, L3) while preserving reproducibility. 
+
+\subsubsection{Threat Model and Attack Taxonomy}
+We evaluate prompt-driven and tool-mediated attacks that target agent misbehavior before on-chain submission. Adversarial prompts are grouped into four vectors $\mathbb{A}^4$, each with 25 entries:
+
+\begin{itemize}
+    \item direct injection (explicit jailbreak/override instructions)
+    \item indirect/encoded (obfuscated or encoded malicious intent)
+    \item tool poisoning (manipulating tool-related assumptions)
+    \item memory poisoning (context poisoning and fake prior-authority claims)
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=3.3in]{figure/Sample test cases.png}
+  \caption{Sample Test Cases (2 Out of 100)}
+  \label{fig_model}
+\end{figure}
+
+A successful attack is to induce unsafe \texttt{ALLOW} decisions, bypass policy controls, or force unstable behavior. From the definition of success, we can define three primary metrics $\mathbb{R}^3$:
+
+Attack Success Rate (ASR):
+\begin{equation}
+    \text{ASR}=\frac{\text{adversarial cases with observed}=ALLOW}{\text{adversarial cases}}
+\end{equation}
+
+False Positive Rate (FP):
+\begin{equation}
+    \text{FP}=\frac{\text{benign cases with observed}=ALLOW}{\text{benign cases}}
+\end{equation}
+
+Time Robustness (TP):
+\begin{equation}
+    \text{TR}=\max_{i}{\text{duration}_i}
+\end{equation}
+
+The 100 cases test suite will be run against all combinations of defense layers (i.e., L1, L1 + L2) to yield the corresponding ASR, FP, and TP.
+
+\subsubsection{Test and Optimality Modeling}
+Define $L(i)=\bigcap_{a=1}^{n} La\in\mathbb{D}$ as $i$-th defense layer implemented for the bare LLM system. Therefore, the marginal utility of $L(i+1)$ is induced as:
+\begin{equation}
+    u(i+1) = t(L(i)) - t(L(i+1))
+\end{equation}
+where $t:(\mathbb{D},\mathbb{A}^4)\to\mathbb{R}^3$ is the testing function.
+
+The optimal defense layer is defined as a convex problem:
+\begin{equation}
+\begin{split}
+\argmax_{i}{||u(i+1)^{+}||_2} \\
+\text{s.t. } i=0,1,2
+\end{split}
+\end{equation}
+
+
+\section{Experiment Results and Discussion}
+
+The test results are as follows.
+
 
 
 % \bibliographystyle{IEEEtran}
