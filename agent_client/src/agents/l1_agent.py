@@ -15,13 +15,15 @@ from ..models.schemas import (
 from ..llm.llm_planner import llm_planner # type: ignore
 from ..tools.tool_coordinator import tool_coordinator
 from policy_engine.engine import evaluate_policy
+from policy_engine.l3_validator import validate_l3
 
 
 # ==========================================================================
-# Defense configuration: "bare" | "l1" | "l1l2"
-#   bare  — Config0: no guardrails at all (baseline)
-#   l1    — Config1: L1 input/output guardrails only
-#   l1l2  — Config2: L1 + L2 policy engine (default, full defense)
+# Defense configuration: "bare" | "l1" | "l1l2" | "l1l2l3"
+#   bare   — Config0: no guardrails at all (baseline)
+#   l1     — Config1: L1 input/output guardrails only
+#   l1l2   — Config2: L1 + L2 policy engine (default, full defense)
+#   l1l2l3 — Config3: L1 + L2 + L3 on-chain enforcement (requires Anvil)
 # ==========================================================================
 _defense_config: str = os.environ.get("DEFENSE_CONFIG", "l1l2")
 
@@ -32,7 +34,7 @@ def get_defense_config() -> str:
 
 def set_defense_config(config: str) -> None:
     global _defense_config
-    valid = ("bare", "l1", "l1l2")
+    valid = ("bare", "l1", "l1l2", "l1l2l3")
     if config not in valid:
         raise ValueError(f"Invalid defense config '{config}', must be one of {valid}")
     _defense_config = config
@@ -224,16 +226,18 @@ class L1Agent:
         """
         Main entry point for processing user requests.
         Behavior depends on _defense_config:
-          bare  — skip L1 + L2 (Config0 baseline)
-          l1    — L1 only, skip L2 (Config1)
-          l1l2  — full defense (Config2, default)
+          bare   — skip L1 + L2 + L3 (Config0 baseline)
+          l1     — L1 only, skip L2 + L3 (Config1)
+          l1l2   — L1 + L2 (Config2, default)
+          l1l2l3 — L1 + L2 + L3 on-chain (Config3, requires Anvil)
         """
         request_id = request.request_id
         config = _defense_config
         logger.info(f"[Agent] Processing request {request_id} (defense={config})")
 
-        enable_l1 = config in ("l1", "l1l2")
-        enable_l2 = config == "l1l2"
+        enable_l1 = config in ("l1", "l1l2", "l1l2l3")
+        enable_l2 = config in ("l1l2", "l1l2l3")
+        enable_l3 = config == "l1l2l3"
         metadata: Dict[str, Any] = {"untrusted_flags": [], "risk_level": "low"}
 
         try:
@@ -316,6 +320,21 @@ class L1Agent:
                 reason = first.get("description", "Transaction blocked by security policy")
                 logger.warning(f"[L2] Policy blocked request {request_id}: {violations}")
                 return self._error_response(request_id, "BLOCKED_BY_POLICY", reason)
+
+            # ========== Step 6a: L3 On-Chain Enforcement ==========
+            if enable_l3:
+                l3_result = validate_l3(swap_intent, tool_response)
+                l3_decision = l3_result.get("decision", "SKIP")
+                if l3_decision == "BLOCK":
+                    l3_violations = l3_result.get("violations", [])
+                    first = l3_violations[0] if l3_violations else {}
+                    reason = first.get("description", "Transaction blocked by L3 on-chain enforcement")
+                    logger.warning(f"[L3] On-chain blocked request {request_id}: {l3_violations}")
+                    return self._error_response(request_id, "BLOCKED_BY_L3", reason)
+                elif l3_decision == "SKIP":
+                    logger.info(f"[L3] Skipped (not configured): {l3_result.get('reason', '')}")
+                else:
+                    logger.info(f"[L3] On-chain validation passed for {request_id}")
 
             # ========== Step 7: Construct unsigned transaction plan (HITL pause point) ==========
             plan_id = f"plan_{uuid.uuid4().hex[:8]}"

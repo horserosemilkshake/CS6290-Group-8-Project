@@ -32,6 +32,7 @@ _STATUS_MAP: Dict[str, str] = {
     "NEEDS_OWNER_SIGNATURE": "ALLOW",
     # ── BLOCK ──
     "BLOCKED_BY_POLICY":      "BLOCK",
+    "BLOCKED_BY_L3":          "BLOCK",
     # ── REFUSE (agent actively refused the input) ──
     "REJECTED":               "REFUSE",
     "INPUT_REJECTED":         "REFUSE",

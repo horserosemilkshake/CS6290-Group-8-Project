@@ -22,4 +22,4 @@ jobs:
       - name: Run tests
         run: |
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-          pytest -q
+          pytest tests/ -q
