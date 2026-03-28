@@ -8,13 +8,20 @@
 \usepackage{textcomp}
 \usepackage{float}
 \usepackage{multicol}
+\usepackage{tabularx}
+\usepackage{makecell}
+
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\usepackage[ natbib=true, style=numeric,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
 \begin{document}
 
 \title{Adversarially-Robust Minimal DeFi Agent For Cryptocurrency Swapping}
 
-\author{\IEEEauthorblockN{Biying FANG (ID:12341000)\IEEEauthorrefmark{1}, Yifan LI (ID:59948944)\IEEEauthorrefmark{1}, Mengmeng SU (ID:59669920)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
+\author{\IEEEauthorblockN{Biying FANG (ID:12341000)\IEEEauthorrefmark{1}, Yifan LI (ID:59669920)\IEEEauthorrefmark{1}, Mengmeng SU (ID:12341000)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
 \IEEEauthorblockA{\IEEEauthorrefmark{1}College of Computer Science\\
 City University of Hong Kong, Tat Chee Avenue, Kowloon, Hong Kong SAR\\
 Email: tszctsoi4-c@my.cityu.edu.hk} }
@@ -28,8 +35,45 @@ The user interfaces of Decentralized Finance (DeFi) are shifting from manually e
 
 The shift introduces an unexamined security boundary. Unlike explicit and formally analyzable smart contracts, large language models (LLMs) exhibit stochasticity and are susceptible to various linguistic and contextual adversarial actions, including prompt injection, indirect influence attacks, contextual contamination, and social‑engineering‑driven specification drift. The threat is amplified in open multi‑party communication environments such as Telegram or WhatsApp, where adversaries may directly interact with the same agent instance as the legitimate user, embedding payloads designed to subvert the transaction‑generation process.
 
-While the existing literature extensively investigates vulnerabilities in smart‑contract correctness, MEV extraction dynamics, oracle manipulation, and private‑key security, there is little systematic analysis of the security properties of novel LLM‑driven transaction‑planning pipelines under adversarial language conditions. The research addresses the gaps by implementing and empirically evaluating a minimal, adversarially tested prototype at the intersection of AI agents and DeFi infrastructure.
+While the existing literature extensively investigates vulnerabilities in smart‑contract correctness, MEV extraction dynamics, oracle manipulation, and private‑key security, there is little systematic analysis of the security properties of novel LLM‑driven transaction‑planning pipelines under adversarial language conditions. The research addresses the gaps by implementing and empirically evaluating a minimal, adversarially tested prototype intersecting AI agents and DeFi infrastructure.
 
+\section{Literature Review}
+%
+
+The project integrates DeFi, AI-driven agents, and adversarial machine learning security, encompassing multiple unrelated and evolving fields. To situate the present work, this section connects three major bodies of literature, namely DeFi protocol and transaction-security research, adversarial language-model safety, and agentic LLM pipelines.
+
+\subsection{DeFi Protocols Research}
+
+Mainstream DeFi security research revolves around deterministic smart-contract vulnerabilities, including integer-overflow bugs, faulty permission, and MEV extraction methodologies assuming explicit, analyzable code as the attack surface, treating swaps and liquidity operations as deterministic execution traces \cite{10.1016/j.eswa.2025.128431}. The literature on non‑custodial wallet design and safe transaction construction further emphasizes invariant‑preserving interfaces and formal verification \cite{10.1016/j.eswa.2025.128431, ERINLE2025111691}. All the discussed work share an implicit assumption that the transaction pipeline is audit-able and deterministic.
+
+However, probabilistic LLM-driven planners invalidate such an assumption and introduce stochastic decision chains and potential misalignment between authentic user intents and generated transactions, creating a novel security boundary that warrants further examination.
+
+\subsection{Adversial LLM insecurity}
+
+On top of stochasticity, the weaker adversarial robustness of LLM also induce challenges for implementing a secure swap agent. Recent research has been conducted throughout the document and has demonstrated attacks such as prompt injection, jailbreaks, and indirect prompt attacks \cite{pathade2025redteamingmindmachine}. In particular, research on prompt injection attacks detail how LLMs can be coerced into overriding internal instructions, execution constraints, or system‑level guardrails, especially when they are unable to enforce reliable separation between trusted and insecure channels \cite{pathade2025redteamingmindmachine, li2025securityconcernslargelanguage}. 
+
+Consistent with the research, production-level incident of unprotected LLM agent getting prompt-injected in online forums and sending funds to unauthorized accounts emerged, highlighting realistic vulnerabilities to direct injection, structural weaknesses in LLM trust boundaries, and the ease of hijacking model behavior in open environments\cite{balaha2026}. This aligns with the threat model facing conversational DeFi agents operating in public channels like Telegram, where adversaries co‑exist with legitimate users and strategically inject malicious instructions into shared context.
+
+
+\subsection{LLM Agents Tools and Deterministic Policy Layer}
+LLM agents that use external tools, APIs, and multi-step planners consistently exhibit novel modes of safety failure beyond typical content-moderation issues. Assessments such as Agent-SafetyBench show that no agent achieves a safety score of 60\% in tool invocation, while datasets like ToolSafety further demonstrates that multi-step and indirect harm scenarios significantly reduce the reliability of LLMs \cite{zhang2024agent, xie-etal-2025-toolsafety}. Even safety‑tuned models err in tool‑mediated workflows—misinterpreting intermediate data, hallucinating execution steps, or over‑relying on uncertain tool outputs. These results highlight the need for deterministic policy layers, strict schema validation, and environment constraints rather than relying solely on prompt‑based guardrails.
+
+\subsection{Synthesis}
+
+\begin{table}[H]
+\centering
+\caption{Summary of Research Domains, Targets, Limitations}
+\label{Summary of Research Domains, Targets, Limitations}
+\begin{tabular}{lll}
+\hline
+Domain & Address & Does not address \\ \hline
+DeFi security  & \makecell{deterministic\\code\\vulnerabilities}    & \makecell{language misinterpretation\\and adversarial manipulation\\at the prompt layer}      \\ \hline
+LLM safety     & \makecell{linguistic-contextual\\ attack surfaces}                & \makecell{high‑stakes consequences\\ of financial execution}        \\ \hline
+\makecell{LLM agent\\research}     & \makecell{risks from\\tool interaction and\\ multi‑step workflows}                & \makecell{non‑custodial architectures and\\ open messaging ecosystems}       \\ \hline
+\end{tabular}
+\end{table}
+
+The proposed prototype addresses the intersection of blind-spots by showing how LLM uncertainty couples with deterministic financial execution and by proposing system‑level invariants that combine cryptographic non‑custodial guarantees with AI safety and adversarial‑robustness principles. The resulting threat surface is a hybrid security frontier different from a classical blockchain bug nor an LLM‑safety issue, and demands novel application frameworks with originality.
 
 \section{Application Setting}
 
@@ -38,7 +82,7 @@ While the existing literature extensively investigates vulnerabilities in smart�
 The system provides a conversation swap planning agent that converts natural-language-based user intents into a deterministic, unsigned transaction plan (\texttt{TxPlan}) for a DeFi swap while the agent never signs or broadcasts transactions. Security objectives are user fund safety, privacy, and policy adherence in adversarial environment (e.g., public chat channels and unsafe data sources). 
 
 \subsubsection{System Components Overview}
-The following provides an overview of components and their interactions.
+The following provides an overview of the components and their interactions.
 
 \begin{figure}[H]
   \centering
@@ -103,14 +147,14 @@ The following table models some of the anticipated threat categories in the syst
 \begin{table}[H]
 \centering
 \caption{Common Threats, Controls Layers, and Outcomes}
-\label{my-label}
+\label{Common Threats, Controls Layers, and Outcomes}
 \begin{tabular}{lll}
 \hline
 Threats & Controls & Outcome \\ \hline
 Direct Prompt Injection   & L1    & \texttt{REJECTED}       \\ \hline
 Jailbreak / Role‑Play Escalation     & L1                & \texttt{REJECTED}        \\ \hline
 Valid But Policy‑Violating Requests \\ (e.g., slippage exceeding threshold)     & L2                & \texttt{BLOCKED}        \\ \hline
-Indirect Data Adversaries   & L1 + Tools    & \texttt{REJECTED/ERROR}       \\ \hline
+Indirect Data Adversaries   & L1 + Tools    & \texttt{\makecell{REJECTED\\/ERROR}}       \\ \hline
 Context Poisoning  & L1    & \texttt{REJECTED}       \\ \hline
 Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
 \end{tabular}
@@ -123,61 +167,16 @@ Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
     \item Invariant I4 (Context Discipline): Tool outputs treated as untrusted data; never merged into instruction channels.
 \end{itemize}
 
-
-
-
-\section{Research Directions of Encrypted Search}
-%
-
-Guidelines: In this subsection, you should introduce the typical research directions for encrypted search, describe in detail the goals of each research direction in terms of functionality and/or security. You should also specify and discuss the design challenges in each direction based on your literature study and or your personal perspectives. Besides, you should properly discuss the existing works and try to reflect the state-of-the-art. A possible organization structure is given below. 
-
-
-\subsection{Basic Searchable Encryption}
-
-\textbf{Goals.} The description goes here.
-
-
-\textbf{Design challenges.} The description goes here.
-
-\textbf{Related work.} The description goes here.
-
-\subsection{Dynamic Searchable Encryption}
-
-\textbf{Goals.} The description goes here.
-
-
-\textbf{Design challenges.} The description goes here.
-
-\textbf{Related work.} The description goes here.
-
-
-
-
-\subsection{Boolean Searchable Encryption}
-
-\textbf{Goals.} The description goes here.
-
-
-\textbf{Design challenges.} The description goes here.
-
-\textbf{Related work.} The description goes here.
-
-\subsection{Any Other Possible Categories}
-
-\textbf{Goals.} The description goes here.
-
-
-\textbf{Design challenges.} The description goes here.
-
-\textbf{Related work.} The description goes here.
-
 \section{Conclusion}
 
-The conclusion goes here.
+The conclusion goes here. 
 
 
-\bibliographystyle{IEEEtran}
-\bibliography{references}
+% \bibliographystyle{IEEEtran}
+% \bibliography{references}
 
+% \bibitem{10.1016/j.eswa.2025.128431}
+
+\printbibliography
 
 \end{document}
