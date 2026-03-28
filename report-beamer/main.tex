@@ -1,0 +1,90 @@
+
+\documentclass{beamer}
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+
+\mode<presentation>{
+  \usetheme{default}
+  \usecolortheme{default}
+  \usefonttheme{default}
+  \setbeamertemplate{caption}[numbered]
+}
+
+\title{Adversarially-Robust Minimal DeFi Agent for Cryptocurrency Swapping}
+\author{Group 8}
+\institute{City University of Hong Kong}
+\date{\today}
+
+\begin{document}
+
+% Title
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% Outline
+\begin{frame}{Outline}
+  \tableofcontents
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{Motivation}
+\begin{itemize}
+  \item DeFi interfaces shifting to conversational AI agents.
+  \item LLMs introduce stochasticity and new adversarial risks.
+  \item Lack of systematic study on LLM-driven transaction security.
+\end{itemize}
+\end{frame}
+
+\section{Background}
+
+\begin{frame}{Key Literature Insights}
+\begin{itemize}
+  \item DeFi security focuses on deterministic smart contracts.
+  \item LLMs vulnerable to prompt injection, jailbreaks, contextual attacks.
+  \item Agentic LLMs fail in tool-mediated workflows without deterministic layers.
+\end{itemize}
+\end{frame}
+
+\section{System Design}
+
+\begin{frame}{System Architecture Overview}
+\begin{itemize}
+  \item L1: LLM layer -- input parsing, sanitization, filtering.
+  \item L2: Deterministic policy engine -- enforce allowlists, slippage, caps.
+  \item L3: Optional on-chain validator.
+\end{itemize}
+\end{frame}
+
+\section{Threat Model}
+
+\begin{frame}{Threat Model Summary}
+\begin{itemize}
+  \item Assets: user funds, privacy, intent integrity.
+  \item Adversaries: prompt attackers, tool-poisoning adversaries, context poisoners.
+  \item Attack surfaces: chat input, external tools, memory, APIs.
+\end{itemize}
+\end{frame}
+
+\section{Evaluation}
+
+\begin{frame}{Experiment Overview}
+\begin{itemize}
+  \item 100 adversarial prompts across 4 attack vectors.
+  \item Compared defenses: L1 alone vs L1+L2.
+  \item Metrics: ASR, FP, Time Robustness.
+\end{itemize}
+\end{frame}
+
+\section{Conclusion}
+
+\begin{frame}{Conclusion}
+\begin{itemize}
+  \item LLM-based DeFi agents introduce hybrid security threats.
+  \item Layered defense significantly improves safety.
+  \item Deterministic policy layer is essential.
+\end{itemize}
+\end{frame}
+
+\end{document}
