@@ -59,16 +59,26 @@ def test_concurrent_set_get_never_reads_partial_state():
         set_defense_config(original)
 
 
-def test_process_request_snapshots_config():
-    """L1Agent.process_request should capture the config at the start of the
-    request so that a concurrent config change mid-request does not cause
-    inconsistent guardrail behavior (e.g., L1 on but L2 skipped)."""
-    original = get_defense_config()
-    try:
-        set_defense_config("l1l2")
-        # The agent reads config at the top of process_request.
-        # We verify the internal _read is consistent by checking that the
-        # returned config value is always one of the valid set.
-        assert get_defense_config() in {"bare", "l1", "l1l2", "l1l2l3"}
-    finally:
-        set_defense_config(original)
+def test_process_request_uses_get_defense_config():
+    """L1Agent.process_request must call get_defense_config() (lock-protected)
+    instead of reading the raw _defense_config global directly."""
+    import inspect
+    from agent_client.src.agents.l1_agent import L1Agent
+
+    source = inspect.getsource(L1Agent.process_request)
+    # Must use the lock-protected getter, not the bare global
+    assert "get_defense_config()" in source, (
+        "process_request should call get_defense_config() to snapshot the "
+        "config under the lock, not read _defense_config directly"
+    )
+    # Should NOT contain a bare read of the global (except possibly in comments)
+    # Strip comments before checking
+    code_lines = [
+        line for line in source.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    code_without_comments = "\n".join(code_lines)
+    assert "= _defense_config" not in code_without_comments, (
+        "process_request should not read _defense_config directly; "
+        "use get_defense_config() instead"
+    )

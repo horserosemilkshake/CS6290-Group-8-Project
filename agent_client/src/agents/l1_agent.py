@@ -151,7 +151,7 @@ class OutputGuardrail:
         try:
             raw = str(intent["sell_amount"])
             if "." in raw:
-                return False, "sell_amount must be an integer in the token's smallest unit (e.g. wei)"
+                return False, "Sell amount must be an integer in the token's smallest unit"
             amount = int(raw)
             if amount <= 0:
                 return False, "Sell amount must be positive"
