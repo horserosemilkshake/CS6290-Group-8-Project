@@ -149,11 +149,14 @@ class OutputGuardrail:
             return False, "Invalid intent structure"
 
         try:
-            amount = int(intent["sell_amount"])
+            raw = str(intent["sell_amount"])
+            if "." in raw:
+                return False, "sell_amount must be an integer in the token's smallest unit (e.g. wei)"
+            amount = int(raw)
             if amount <= 0:
                 return False, "Sell amount must be positive"
         except (ValueError, TypeError):
-            return False, "Invalid sell_amount format"
+            return False, "Invalid sell_amount format: must be an integer string"
 
         reasoning = llm_output.get("reasoning", "").lower()
         for tool in self.FORBIDDEN_TOOLS:
