@@ -180,6 +180,31 @@ class TestFormatter:
 
 
 # ---------------------------------------------------------------------------
+# 2b. HTTP client lifecycle tests
+# ---------------------------------------------------------------------------
+
+class TestHttpClientLifecycle:
+    """Verify that build_application registers shutdown cleanup for httpx."""
+
+    def test_build_application_registers_post_shutdown(self, monkeypatch):
+        """The Application built by build_application must have a post_shutdown
+        callback so the httpx.AsyncClient is closed on shutdown."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:ABC")
+        monkeypatch.setenv("OWNER_TELEGRAM_ID", "99999")
+
+        from telegram_bot.config import BotConfig
+        from telegram_bot.bot import build_application
+
+        cfg = BotConfig(token="123:FAKE", owner_telegram_id=99999)
+
+        app = build_application(cfg)
+        # post_shutdown is set via builder; it should be a callable, not None
+        assert app.post_shutdown is not None, (
+            "build_application must register a post_shutdown callback to close httpx.AsyncClient"
+        )
+
+
+# ---------------------------------------------------------------------------
 # 3. Bot call_agent tests (mock httpx)
 # ---------------------------------------------------------------------------
 
