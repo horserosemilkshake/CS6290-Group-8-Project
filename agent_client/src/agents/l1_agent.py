@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
@@ -32,10 +33,12 @@ from policy_engine.rules import extract_request_signals
 
 
 _defense_config: str = os.environ.get("DEFENSE_CONFIG", "l1l2")
+_defense_config_lock = threading.Lock()
 
 
 def get_defense_config() -> str:
-    return _defense_config
+    with _defense_config_lock:
+        return _defense_config
 
 
 def set_defense_config(config: str) -> None:
@@ -43,7 +46,8 @@ def set_defense_config(config: str) -> None:
     valid = ("bare", "l1", "l1l2", "l1l2l3")
     if config not in valid:
         raise ValueError(f"Invalid defense config '{config}', must be one of {valid}")
-    _defense_config = config
+    with _defense_config_lock:
+        _defense_config = config
     logger.info("[Config] Defense config set to: %s", config)
 
 
@@ -145,11 +149,14 @@ class OutputGuardrail:
             return False, "Invalid intent structure"
 
         try:
-            amount = int(intent["sell_amount"])
+            raw = str(intent["sell_amount"])
+            if "." in raw:
+                return False, "Sell amount must be an integer in the token's smallest unit"
+            amount = int(raw)
             if amount <= 0:
                 return False, "Sell amount must be positive"
         except (ValueError, TypeError):
-            return False, "Invalid sell_amount format"
+            return False, "Invalid sell_amount format: must be an integer string"
 
         reasoning = llm_output.get("reasoning", "").lower()
         for tool in self.FORBIDDEN_TOOLS:
@@ -190,7 +197,7 @@ class L1Agent:
 
     async def process_request(self, request: PlanRequest) -> PlanResponse:
         request_id = request.request_id
-        config = _defense_config
+        config = get_defense_config()
         logger.info("[Agent] Processing request %s (defense=%s)", request_id, config)
 
         enable_l1 = config in ("l1", "l1l2", "l1l2l3")

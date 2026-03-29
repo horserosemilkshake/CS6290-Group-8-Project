@@ -104,8 +104,8 @@ def format_block(data: Dict[str, Any]) -> str:
     if failure:
         reasons.append(failure)
 
-    # From error dict
-    err_detail = error.get("detail", "")
+    # From error dict — PlanResponse uses "message" (not "detail")
+    err_detail = error.get("message") or error.get("detail", "")
     if err_detail and err_detail not in reasons:
         reasons.append(err_detail)
 
@@ -121,7 +121,7 @@ def format_block(data: Dict[str, Any]) -> str:
 def format_refuse(data: Dict[str, Any]) -> str:
     """Format a REJECTED response (L1 guardrail refusal)."""
     error = data.get("error") or {}
-    detail = error.get("detail", "Input rejected by safety filter")
+    detail = error.get("message") or error.get("detail", "Input rejected by safety filter")
     return (
         "⛔ Request REFUSED\n"
         f"Reason: {_truncate(str(detail), 300)}\n"
@@ -132,7 +132,7 @@ def format_refuse(data: Dict[str, Any]) -> str:
 def format_error(data: Dict[str, Any]) -> str:
     """Format an unexpected error response."""
     error = data.get("error") or {}
-    detail = error.get("detail", "An unexpected error occurred")
+    detail = error.get("message") or error.get("detail", "An unexpected error occurred")
     return (
         "⚠️ Error\n"
         f"Detail: {_truncate(str(detail), 300)}\n"

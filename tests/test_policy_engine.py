@@ -335,6 +335,34 @@ def test_engine_block_explicit_buy_amount_request():
     assert "R-13" in {violation["rule_id"] for violation in result["violations"]}
 
 
+def test_compute_slippage_bps_negative_returns_zero_not_none():
+    """Negative slippage (user gets more than expected) should return 0.0
+    instead of None so that downstream checks are not silently skipped."""
+    result = compute_slippage_bps(
+        sell_token="ETH",
+        buy_token="USDC",
+        sell_amount_raw=str(10**18),
+        buy_amount_raw=str(3500 * 10**6),  # user gets MORE than market price
+        market_snapshot={"ETH": 2800.0, "USDC": 1.0},
+    )
+    # Previously returned None (check skipped). Now should return 0.0
+    assert result is not None
+    assert result == 0.0
+
+
+def test_compute_slippage_bps_above_ceiling_returns_none():
+    """Absurdly high slippage is still treated as data anomaly (returns None)."""
+    result = compute_slippage_bps(
+        sell_token="ETH",
+        buy_token="USDC",
+        sell_amount_raw=str(10**18),
+        buy_amount_raw="1",  # almost nothing received
+        market_snapshot={"ETH": 2800.0, "USDC": 1.0},
+    )
+    # This is ~10000 bps (100%) which exceeds SLIPPAGE_SANITY_CEILING_BPS (5000)
+    assert result is None
+
+
 def test_status_map_regressions():
     from harness.agent_clients import _STATUS_MAP
 

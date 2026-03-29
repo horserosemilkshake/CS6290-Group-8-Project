@@ -170,11 +170,14 @@ def compute_slippage_bps(
 
     slippage_bps = (expected_value - actual_value) / expected_value * 10_000
 
-    # Treat absurd negatives / huge values as data-quality anomalies.
-    if slippage_bps < 0 or slippage_bps > cfg.SLIPPAGE_SANITY_CEILING_BPS:
+    # Absurdly high values are data-quality anomalies — skip the check.
+    if slippage_bps > cfg.SLIPPAGE_SANITY_CEILING_BPS:
         return None
 
-    return slippage_bps
+    # Negative slippage means the user got a better-than-market price.
+    # Clamp to 0.0 so that downstream checks still run rather than being
+    # silently skipped (returning None would bypass the slippage rule).
+    return max(slippage_bps, 0.0)
 
 
 def check_slippage(

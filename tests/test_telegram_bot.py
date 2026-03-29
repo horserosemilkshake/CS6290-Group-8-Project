@@ -115,7 +115,7 @@ class TestFormatter:
         from telegram_bot.formatter import format_response
         data = {
             "status": "REJECTED",
-            "error": {"detail": "Prompt injection detected"},
+            "error": {"message": "Prompt injection detected"},
         }
         text = format_response(data)
         assert "⛔" in text
@@ -123,7 +123,7 @@ class TestFormatter:
 
     def test_format_error(self):
         from telegram_bot.formatter import format_response
-        data = {"status": "SOMETHING_ELSE", "error": {"detail": "timeout"}}
+        data = {"status": "SOMETHING_ELSE", "error": {"message": "timeout"}}
         text = format_response(data)
         assert "⚠️" in text
         assert "timeout" in text
@@ -139,11 +139,69 @@ class TestFormatter:
         from telegram_bot.formatter import format_response
         data = {
             "status": "REJECTED",
-            "error": {"detail": "A" * 500},
+            "error": {"message": "A" * 500},
         }
         text = format_response(data)
         assert "..." in text
         assert len(text) < 600  # truncated
+
+    def test_format_block_reads_message_field(self):
+        """PlanResponse.error uses 'message', not 'detail'. The formatter must
+        extract the reason from the 'message' key so users see the real cause."""
+        from telegram_bot.formatter import format_response
+        data = {
+            "status": "BLOCKED_BY_POLICY",
+            "tx_plan": {},
+            "error": {"code": "BLOCKED_BY_POLICY", "message": "Token SCAM not in allowlist", "details": {}},
+        }
+        text = format_response(data)
+        assert "Token SCAM not in allowlist" in text
+
+    def test_format_refuse_reads_message_field(self):
+        """PlanResponse.error uses 'message', not 'detail'. The formatter must
+        extract the reason from the 'message' key."""
+        from telegram_bot.formatter import format_response
+        data = {
+            "status": "REJECTED",
+            "error": {"code": "INPUT_REJECTED", "message": "Request rejected: prompt injection attempt", "details": {}},
+        }
+        text = format_response(data)
+        assert "prompt injection" in text.lower()
+
+    def test_format_error_reads_message_field(self):
+        """Error responses must also read from the 'message' key."""
+        from telegram_bot.formatter import format_response
+        data = {
+            "status": "INTERNAL_ERROR",
+            "error": {"code": "INTERNAL_ERROR", "message": "LLM parsing failed", "details": {}},
+        }
+        text = format_response(data)
+        assert "LLM parsing failed" in text
+
+
+# ---------------------------------------------------------------------------
+# 2b. HTTP client lifecycle tests
+# ---------------------------------------------------------------------------
+
+class TestHttpClientLifecycle:
+    """Verify that build_application registers shutdown cleanup for httpx."""
+
+    def test_build_application_registers_post_shutdown(self, monkeypatch):
+        """The Application built by build_application must have a post_shutdown
+        callback so the httpx.AsyncClient is closed on shutdown."""
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:ABC")
+        monkeypatch.setenv("OWNER_TELEGRAM_ID", "99999")
+
+        from telegram_bot.config import BotConfig
+        from telegram_bot.bot import build_application
+
+        cfg = BotConfig(token="123:FAKE", owner_telegram_id=99999)
+
+        app = build_application(cfg)
+        # post_shutdown is set via builder; it should be a callable, not None
+        assert app.post_shutdown is not None, (
+            "build_application must register a post_shutdown callback to close httpx.AsyncClient"
+        )
 
 
 # ---------------------------------------------------------------------------

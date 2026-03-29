@@ -107,9 +107,11 @@ class LLMPlanner:
             amount = amount_match.group(1)
             sell_token = tokens[0].upper()
             buy_token = tokens[1].upper()
-            
-            # Convert to wei (18 decimal places)
-            sell_amount_wei = str(int(float(amount) * 10**18))
+
+            # Use correct decimals per token (USDC/USDT = 6, others = 18)
+            _TOKEN_DECIMALS = {"USDC": 6, "USDT": 6, "WBTC": 8}
+            decimals = _TOKEN_DECIMALS.get(sell_token, 18)
+            sell_amount_wei = str(int(float(amount) * 10**decimals))
             
             token_addresses = {
                 "ETH": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",

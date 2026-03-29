@@ -252,6 +252,12 @@ def build_application(cfg: BotConfig) -> Application:
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.error("Unhandled exception: %s", context.error, exc_info=context.error)
 
+    # -- shutdown cleanup --
+
+    async def _shutdown_cleanup(application: Application) -> None:
+        """Close the shared httpx.AsyncClient on application shutdown."""
+        await http_client.aclose()
+
     # ------------------------------------------------------------------
     # Wire everything together
     # ------------------------------------------------------------------
@@ -262,6 +268,7 @@ def build_application(cfg: BotConfig) -> Application:
         .token(cfg.token)
         .request(request)
         .get_updates_request(HTTPXRequest(connection_pool_size=8, proxy=None))
+        .post_shutdown(_shutdown_cleanup)
         .build()
     )
 
