@@ -51,7 +51,7 @@ Mainstream DeFi security research revolves around deterministic smart-contract v
 
 However, probabilistic LLM-driven planners invalidate such an assumption and introduce stochastic decision chains and potential misalignment between authentic user intents and generated transactions, creating a novel security boundary that warrants further examination.
 
-\subsection{Adversial LLM insecurity}
+\subsection{Adversarial LLM Insecurity}
 
 On top of stochasticity, the weaker adversarial robustness of LLM also induce challenges for implementing a secure swap agent. Recent research has been conducted throughout the document and has demonstrated attacks such as prompt injection, jailbreaks, and indirect prompt attacks \cite{pathade2025redteamingmindmachine}. In particular, research on prompt injection attacks detail how LLMs can be coerced into overriding internal instructions, execution constraints, or system‑level guardrails, especially when they are unable to enforce reliable separation between trusted and insecure channels \cite{pathade2025redteamingmindmachine, li2025securityconcernslargelanguage}. 
 
@@ -195,28 +195,30 @@ We evaluate prompt-driven and tool-mediated attacks that target agent misbehavio
 \begin{figure}[H]
   \centering
   \includegraphics[width=3.3in]{figure/Sample test cases.png}
-  \caption{Sample Test Cases (2 Out of 100)}
-  \label{fig_model}
+  \caption{Sample Test Cases (2 Out of 125)}
+  \label{fig_sample_cases}
 \end{figure}
+
+An additional 25 benign (legitimate swap) cases are included to measure false-positive behavior, bringing the final dataset to 125 cases (100 adversarial + 25 benign).
 
 A successful attack is to induce unsafe \texttt{ALLOW} decisions, bypass policy controls, or force unstable behavior. From the definition of success, we can define three primary metrics $\mathbb{R}^3$:
 
 Attack Success Rate (ASR):
 \begin{equation}
-    \text{ASR}=\frac{\text{adversarial cases with observed}=ALLOW}{\text{adversarial cases}}
+    \text{ASR}=\frac{\text{adversarial cases with observed}=\texttt{ALLOW}}{\text{total adversarial cases}}
 \end{equation}
 
 False Positive Rate (FP):
 \begin{equation}
-    \text{FP}=\frac{\text{benign cases with observed}=ALLOW}{\text{benign cases}}
+    \text{FP}=\frac{\text{benign cases with observed}\neq\texttt{ALLOW}}{\text{total benign cases}}
 \end{equation}
 
-Time Robustness (TP):
+Time Robustness (TR):
 \begin{equation}
     \text{TR}=\max_{i}{\text{duration}_i}
 \end{equation}
 
-The 100 cases test suite will be run against all combinations of defense layers (i.e., L1, L1 + L2) to yield the corresponding ASR, FP, and TP.
+The 125-case test suite is run against four defense configurations (bare, L1, L1+L2, L1+L2+L3) to yield ASR, FP, and TR for each layer combination.
 
 \subsubsection{Test and Optimality Modeling}
 Define $L(i)=\bigcap_{a=1}^{n} La\in\mathbb{D}$ as $i$-th defense layer implemented for the bare LLM system. Therefore, the marginal utility of $L(i+1)$ is induced as:
@@ -236,9 +238,84 @@ The optimal defense layer is defined as a convex problem:
 
 \section{Experiment Results and Discussion}
 
-The test results are as follows.
+\subsection{Overall Results}
 
+The final evaluation dataset (\texttt{final\_attack\_dataset\_v2}) comprises 125 cases: 100 adversarial cases evenly distributed across four attack vectors (25 each) and 25 benign cases. Table~\ref{tab:main-results} presents the results across four defense configurations.
 
+\begin{table}[H]
+\centering
+\caption{Final Red-Team Results (125 Cases, v2 Dataset)}
+\label{tab:main-results}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\ \hline
+bare    & 76.00\% & 0.00\% & 3.05 & 125 \\
+L1      & 25.00\% & 0.00\% & 8.62 & 125 \\
+L1+L2   & 15.00\% & 0.00\% & 3.39 & 125 \\
+L1+L2+L3 & 15.00\% & 0.00\% & 3.49 & 125 \\ \hline
+\end{tabular}
+\end{table}
+
+The bare (undefended) agent allowed 76\% of adversarial inputs to pass through, confirming that the LLM planner alone is highly vulnerable. Introducing L1 guardrails reduced ASR to 25\%, a 51 percentage-point drop. Adding the L2 deterministic policy engine further reduced ASR to 15\%. L3 (on-chain SwapGuard validation) did not further reduce ASR in this dataset but provides an additional enforcement layer against parameter-level attacks that may bypass L2 in production.
+
+Notably, all configurations achieved 0\% FP, indicating that none of the 25 benign swap requests were incorrectly rejected.
+
+\subsection{Per-Attack-Vector Breakdown}
+
+Table~\ref{tab:breakdown} shows the outcome distribution under the best defense configuration (L1+L2) across attack vectors.
+
+\begin{table}[H]
+\centering
+\caption{L1+L2 Outcome Breakdown by Attack Vector}
+\label{tab:breakdown}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Attack Vector} & \textbf{REFUSE} & \textbf{BLOCK} & \textbf{ALLOW} & \textbf{Total} \\ \hline
+Direct injection     & 23 & 2  & 0  & 25 \\
+Indirect / encoded   & 22 & 2  & 1  & 25 \\
+Memory poisoning     & 25 & 0  & 0  & 25 \\
+Tool poisoning       & 5  & 6  & 14 & 25 \\
+Benign (legitimate)  & 0  & 0  & 25 & 25 \\ \hline
+\end{tabular}
+\end{table}
+
+Direct injection, indirect/encoded, and memory poisoning are effectively neutralized by L1+L2, with near-zero successful attacks. The primary residual vulnerability is tool poisoning, where 14 out of 25 adversarial cases still receive \texttt{ALLOW}. These cases exploit the gap between L1 (language-level) and L2 (parameter-level) checks: the adversarial intent is expressed through valid-looking swap parameters rather than detectable linguistic patterns.
+
+\subsection{Layer-by-Layer Analysis}
+
+\subsubsection{L1 Contribution}
+L1 guardrails provide the largest single reduction in ASR ($76\% \to 25\%$). The input guardrail intercepts prompt injection via regex-based blocked patterns and keyword filtering, while the output guardrail validates LLM response structure and forbidden tool calls. L1 is most effective against direct injection (ASR drops from 72\% to 8\%) and memory poisoning (ASR drops from 52\% to 0\%).
+
+\subsubsection{L2 Contribution}
+The L2 deterministic policy engine provides an additional 10 percentage-point ASR reduction ($25\% \to 15\%$). It catches attacks that produce syntactically valid but policy-violating plans: disallowed tokens (R-01), disallowed routers (R-02), excessive slippage (R-03), value cap violations (R-04), unlimited approvals (R-05), and structural integrity violations (R-07). L2 is particularly effective against tool poisoning, blocking 6 additional cases that L1 alone would allow.
+
+\subsubsection{L3 Contribution}
+L3 on-chain validation via the SwapGuard contract replicates key L2 checks (token allowlist, router allowlist, value cap, slippage) as an immutable on-chain enforcement layer. While L3 does not reduce ASR further in the current dataset, it provides defense-in-depth: even if L2 rules are misconfigured or bypassed at the application level, the on-chain contract independently enforces hard constraints before any transaction can execute.
+
+\subsection{Latency Considerations}
+The bare configuration processes requests in a mean of 2.22s. L1 increases peak latency to 8.62s due to LLM API calls for intent parsing. L1+L2 reduces peak latency back to 3.39s because many requests are rejected early by L1 before reaching the LLM. L3 adds minimal overhead ($\sim$0.1s) as it performs a single \texttt{eth\_call} to the local chain.
+
+\subsection{Discussion}
+The results demonstrate that layered defense is essential for securing LLM-driven DeFi agents. Relying solely on the LLM (bare mode) is insufficient, as adversarial prompts bypass it 76\% of the time. The combination of probabilistic (L1) and deterministic (L2) layers provides complementary coverage: L1 handles linguistic attacks while L2 catches parameter-level policy violations.
+
+The remaining 15\% ASR is concentrated in tool-poisoning attacks that craft valid-looking swap parameters. Addressing this gap would require semantic understanding of attack intent at the parameter level, potentially through anomaly detection on swap patterns or stricter tool-output validation.
+
+\section{Conclusion}
+
+This paper presents the design, implementation, and adversarial evaluation of a minimal DeFi swap agent with layered security guardrails. The system converts natural-language swap requests into unsigned transaction plans through three sequential defense layers: L1 (LLM-level input/output guardrails), L2 (deterministic policy engine), and L3 (optional on-chain contract enforcement).
+
+Empirical evaluation on 125 red-team cases across four attack vectors demonstrates that:
+\begin{enumerate}
+    \item An undefended LLM planner is highly vulnerable (76\% ASR).
+    \item L1 guardrails reduce ASR to 25\%, primarily by intercepting linguistic attacks.
+    \item L2 deterministic policies further reduce ASR to 15\% by catching parameter-level violations.
+    \item L3 on-chain enforcement provides defense-in-depth without additional ASR reduction in the current dataset.
+    \item All configurations maintain 0\% false positives on benign requests.
+\end{enumerate}
+
+The non-custodial invariant (the agent never signs or broadcasts) ensures that even a successful attack produces only an unsigned plan, requiring explicit owner signature before on-chain execution. This architectural constraint bounds the worst-case impact of residual vulnerabilities.
+
+Future work should address the tool-poisoning gap through semantic intent verification, extend evaluation to multi-turn conversational attacks, and investigate the robustness of L3 enforcement under adversarial contract interactions.
 
 % \bibliographystyle{IEEEtran}
 % \bibliography{references}
