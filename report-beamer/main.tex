@@ -2,6 +2,8 @@
 \documentclass{beamer}
 \usepackage[english]{babel}
 \usepackage[utf8x]{inputenc}
+\usepackage{booktabs}
+\usepackage{graphicx}
 
 \mode<presentation>{
   \usetheme{default}
@@ -51,40 +53,118 @@
 
 \begin{frame}{System Architecture Overview}
 \begin{itemize}
-  \item L1: LLM layer -- input parsing, sanitization, filtering.
-  \item L2: Deterministic policy engine -- enforce allowlists, slippage, caps.
-  \item L3: Optional on-chain validator.
+  \item \textbf{L1: LLM Guardrails} -- input sanitization, prompt-injection filtering, output structure validation, forbidden tool-call detection.
+  \item \textbf{L2: Deterministic Policy Engine} -- token/router allowlists, slippage limit, value cap, approval pattern checks, quote expiry, chain scope.
+  \item \textbf{L3: On-Chain Validator (SwapGuard)} -- pre-flight \texttt{eth\_call} to an immutable Solidity contract enforcing hard constraints before execution.
 \end{itemize}
+\vspace{0.3em}
+\textbf{Key invariant:} The agent \emph{never} signs or broadcasts transactions.
+\end{frame}
+
+\begin{frame}{Architecture Diagram}
+\begin{figure}
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/figure1.png}
+  \caption{System Components and Data Flow}
+\end{figure}
 \end{frame}
 
 \section{Threat Model}
 
 \begin{frame}{Threat Model Summary}
 \begin{itemize}
-  \item Assets: user funds, privacy, intent integrity.
-  \item Adversaries: prompt attackers, tool-poisoning adversaries, context poisoners.
-  \item Attack surfaces: chat input, external tools, memory, APIs.
+  \item \textbf{Assets:} user funds, privacy, intent integrity.
+  \item \textbf{Adversaries:} prompt attackers, tool-poisoning adversaries, context poisoners, fraudsters.
+  \item \textbf{Attack surfaces:} chat input, external tool outputs, memory/context, API endpoints.
 \end{itemize}
+\end{frame}
+
+\begin{frame}{Attack Taxonomy}
+\begin{itemize}
+  \item \textbf{Direct injection} (25 cases): explicit jailbreak/override instructions.
+  \item \textbf{Indirect / encoded} (25 cases): obfuscated or encoded malicious intent.
+  \item \textbf{Tool poisoning} (25 cases): manipulating tool-related assumptions.
+  \item \textbf{Memory poisoning} (25 cases): context poisoning and fake admin claims.
+  \item \textbf{Benign} (25 cases): legitimate swap requests (for FP measurement).
+\end{itemize}
+\vspace{0.3em}
+Total: \textbf{125 cases} in the final evaluation dataset (v2).
 \end{frame}
 
 \section{Evaluation}
 
 \begin{frame}{Experiment Overview}
 \begin{itemize}
-  \item 100 adversarial prompts across 4 attack vectors.
-  \item Compared defenses: L1 alone vs L1+L2.
-  \item Metrics: ASR, FP, Time Robustness.
+  \item 125 test cases across 4 attack vectors + benign baseline.
+  \item Compared 4 defense configurations: bare, L1, L1+L2, L1+L2+L3.
+  \item Metrics: ASR (Attack Success Rate), FP (False Positive Rate), TR (Time Robustness).
 \end{itemize}
+\end{frame}
+
+\begin{frame}{Main Results}
+\begin{table}
+\centering
+\caption{Red-Team Results (125 Cases, v2 Dataset)}
+\label{tab:main-results}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\ \midrule
+bare      & 76.00\% & 0.00\% & 3.05 & 125 \\
+L1        & 25.00\% & 0.00\% & 8.62 & 125 \\
+L1+L2     & 15.00\% & 0.00\% & 3.39 & 125 \\
+L1+L2+L3  & 15.00\% & 0.00\% & 3.49 & 125 \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item L1 reduces ASR by 51 percentage points (76\% $\to$ 25\%).
+  \item L2 provides additional 10pp reduction (25\% $\to$ 15\%).
+  \item \textbf{0\% false positives} across all configurations.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Attack Vector Breakdown (L1+L2)}
+\begin{table}
+\centering
+\caption{L1+L2 Outcomes by Attack Vector}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Vector} & \textbf{REFUSE} & \textbf{BLOCK} & \textbf{ALLOW} & \textbf{Total} \\ \midrule
+Direct injection   & 23 & 2  & 0  & 25 \\
+Indirect / encoded & 22 & 2  & 1  & 25 \\
+Memory poisoning   & 25 & 0  & 0  & 25 \\
+Tool poisoning     & 5  & 6  & 14 & 25 \\
+Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item Direct, indirect, and memory attacks: effectively neutralized.
+  \item \textbf{Tool poisoning} is the residual gap (14/25 still ALLOW).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Key Findings}
+\begin{enumerate}
+  \item Bare LLM planner is highly vulnerable (76\% ASR).
+  \item \textbf{Layered defense is essential}: L1 (probabilistic) + L2 (deterministic) together reduce ASR to 15\%.
+  \item L3 on-chain enforcement adds defense-in-depth without latency penalty.
+  \item Residual vulnerability concentrated in \textbf{tool poisoning}, where adversarial intent is expressed through valid-looking parameters.
+  \item Non-custodial invariant bounds worst-case impact: even successful attacks produce only unsigned plans.
+\end{enumerate}
 \end{frame}
 
 \section{Conclusion}
 
 \begin{frame}{Conclusion}
 \begin{itemize}
-  \item LLM-based DeFi agents introduce hybrid security threats.
-  \item Layered defense significantly improves safety.
-  \item Deterministic policy layer is essential.
+  \item LLM-based DeFi agents introduce hybrid security threats requiring both probabilistic and deterministic defenses.
+  \item Layered defense (L1+L2+L3) reduces ASR from 76\% to 15\% with 0\% false positives.
+  \item Deterministic policy enforcement (L2) is essential -- LLM guardrails alone are insufficient.
+  \item Non-custodial design provides an architectural safety net.
 \end{itemize}
+\vspace{0.5em}
+\textbf{Future work:} semantic intent verification for tool poisoning, multi-turn attack evaluation, adversarial contract interactions.
 \end{frame}
 
 \end{document}
