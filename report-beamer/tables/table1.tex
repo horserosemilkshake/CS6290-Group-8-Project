@@ -1,15 +1,14 @@
-% Please add the following required packages to your document preamble:
-% \usepackage{booktabs}
+% Requires \usepackage{booktabs} and \usepackage{float} in preamble
 \begin{table}[H]
 \centering
-\caption{Caption for table one}
+\caption{Final Red-Team Results (125 Cases, v2 Dataset)}
 \label{tab:table1}
-\begin{tabular}{@{}lcc@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-\textbf{Heading1} & \textbf{Heading2} & \textbf{Heading3} \\ \midrule
-Row1 & 0.1 & .01 \\
-Row2 & 0.2 & .02 \\
-Row3 & 0.3 & 0.03 \\
-Row4 & 0.4 & 0.04 \\ \bottomrule
+\textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\ \midrule
+bare      & 76.00\% & 0.00\% & 3.05 & 125 \\
+L1        & 25.00\% & 0.00\% & 8.62 & 125 \\
+L1+L2     & 15.00\% & 0.00\% & 3.39 & 125 \\
+L1+L2+L3  & 15.00\% & 0.00\% & 3.49 & 125 \\ \bottomrule
 \end{tabular}
 \end{table}
