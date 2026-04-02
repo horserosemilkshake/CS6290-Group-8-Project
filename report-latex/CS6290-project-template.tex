@@ -91,7 +91,7 @@ The following provides an overview of the components and their interactions.
   \centering
   \includegraphics[width=3.3in]{figure/component_diagram.png}
   \caption{System Components Overview (zoom in for details)}
-  \label{fig_model}
+  \label{fig_components}
 \end{figure}
 
 A legitimate user interacts with the system via a conversation request to a chat interface (typically a Telegram bot), calling the agent plan API. After the Layer 1 (L1) agent parses and sanitizes the request, it extracts a structured swap intent and retrieves market data. The Layer 2 (L2) policy engine verifies whether the request compiles with deterministic safety and \texttt{allowlist} rules, and returns an unsigned \texttt{TxPlan} marked with \texttt{NEEDS\_OWNER\_SIGNATURE} The user reviews the plan and, if satisfied, signs with their own private key.
@@ -102,7 +102,7 @@ In this paper, L1 is the DeFi LLM agent. It is a probabilistic layer responsible
   \centering
   \includegraphics[width=2in]{figure/bare+L1+L2.png}
   \caption{The Relationship Between Bare LLM, L1 and L2}
-  \label{fig_model}
+  \label{fig_layers}
 \end{figure}
 
 Detailedly, the system converts natural-language swap requests into unsigned transaction plans through three sequential control layers with the following specific checks:
@@ -293,7 +293,7 @@ The L2 deterministic policy engine provides an additional 10 percentage-point AS
 L3 on-chain validation via the SwapGuard contract replicates key L2 checks (token allowlist, router allowlist, value cap, slippage) as an immutable on-chain enforcement layer. While L3 does not reduce ASR further in the current dataset, it provides defense-in-depth: even if L2 rules are misconfigured or bypassed at the application level, the on-chain contract independently enforces hard constraints before any transaction can execute.
 
 \subsection{Latency Considerations}
-The bare configuration processes requests in a mean of 2.22s. L1 increases peak latency to 8.62s due to LLM API calls for intent parsing. L1+L2 reduces peak latency back to 3.39s because many requests are rejected early by L1 before reaching the LLM. L3 adds minimal overhead ($\sim$0.1s) as it performs a single \texttt{eth\_call} to the local chain.
+We report maximum request latency $\text{TR}$ (as defined in Eq.~3) for each configuration. The bare configuration has a max latency of 3.05s. Adding L1 increases max latency to 8.62s due to additional LLM API calls for intent parsing. The L1+L2 configuration has a max latency of 3.39s, while enabling L3 yields a max latency of 3.49s, reflecting only $\sim$0.1s of additional overhead for a single \texttt{eth\_call} to the local chain.
 
 \subsection{Discussion}
 The results demonstrate that layered defense is essential for securing LLM-driven DeFi agents. Relying solely on the LLM (bare mode) is insufficient, as adversarial prompts bypass it 76\% of the time. The combination of probabilistic (L1) and deterministic (L2) layers provides complementary coverage: L1 handles linguistic attacks while L2 catches parameter-level policy violations.
