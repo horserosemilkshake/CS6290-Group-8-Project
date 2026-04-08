@@ -20,6 +20,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r agent_client/src/agent_requirements.txt
           pip install -r requirements-dev.txt
+      - name: Verify system prompt integrity (Spec A-02)
+        run: |
+          python scripts/verify_system_prompt.py
       - name: Run tests
         run: |
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"

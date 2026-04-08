@@ -9,42 +9,26 @@ from ..models.schemas import SwapIntent
 # llm_planner.py -> src/llm/ -> src/ -> agent_client/ -> project root  (parents[3])
 load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
+
+def _load_system_prompt() -> str:
+    """Load system prompt from external file for immutability enforcement (Spec A-02).
+    
+    The prompt file is hash-verified to detect unauthorized modifications.
+    See: system_prompt.hash and scripts/verify_system_prompt.py
+    """
+    prompt_file = Path(__file__).resolve().parent / "system_prompt.txt"
+    if not prompt_file.exists():
+        raise FileNotFoundError(
+            f"System prompt file not found: {prompt_file}\n"
+            f"Please ensure system_prompt.txt exists in the same directory."
+        )
+    return prompt_file.read_text(encoding="utf-8")
+
+
 # --- System Prompt ---
-# This prompt is critical for security and performance.
-# It should be immutable and not alterable by user input.
-SYSTEM_PROMPT = """
-You are a highly intelligent and secure AI agent responsible for parsing a user's natural language into a structured, executable transaction intent.
-
-**CRITICAL SECURITY INSTRUCTIONS:**
-1.  **NEVER** execute transactions directly. Your only role is to parse the user's request into a structured JSON format.
-2.  The user's wallet address (`user_address`) is NOT part of their initial message. It will be provided by the system later. Do not hallucinate an address.
-3.  The `chain_id` is a critical security parameter. Default to Ethereum Mainnet (chain_id: 1) unless another chain is EXPLICITLY mentioned.
-4.  The `sell_amount` must be parsed into its smallest denomination based on the token's decimals. For example:
-    - WETH/ETH has 18 decimals, so "1.5 WETH" becomes "1500000000000000000".
-    - USDC/USDT has 6 decimals, so "1.5 USDC" becomes "1500000".
-5.  Your output **MUST** be a valid JSON object that strictly conforms to the following Pydantic model, with no extra fields or explanations:
-
-```json
-{
-  "chain_id": integer,
-  "sell_token": "string",
-  "buy_token": "string",
-  "sell_amount": "string"
-}
-```
-
-**EXAMPLE:**
-- User Input: "I want to swap 1.5 WETH for USDC on mainnet"
-- Your Output:
-```json
-{
-  "chain_id": 1,
-  "sell_token": "WETH",
-  "buy_token": "USDC",
-  "sell_amount": "1500000000000000000"
-}
-```
-"""
+# Loaded from external file for immutability enforcement (Spec A-02).
+# The file is hash-verified by scripts/verify_system_prompt.py
+SYSTEM_PROMPT = _load_system_prompt()
 
 class LLMPlanner:
     """
@@ -83,8 +67,8 @@ class LLMPlanner:
         """
         print("INFO: [LLM] Calling API to parse intent...")
         
-        # Try to get custom model name from environment variable, default to qwen-plus if not set
-        # 原本为 gpt-4o-mini
+        # Try to get custom model name from environment variable, default to deepseek-chat if not set
+        # Previously used gpt-4o-mini
         model_name = os.getenv("LLM_MODEL_NAME", "deepseek-chat")
 
         try:
