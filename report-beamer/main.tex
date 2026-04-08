@@ -31,22 +31,62 @@
 
 \section{Introduction}
 
-\begin{frame}{Motivation}
+\begin{frame}{Project Background}
 \begin{itemize}
-  \item DeFi interfaces shifting to conversational AI agents.
-  \item LLMs introduce stochasticity and new adversarial risks.
-  \item Lack of systematic study on LLM-driven transaction security.
+  \item DeFi UX is shifting from manual clicks to chat-based agents.
+  \item We target the pre-execution risk point: Natural language intent $\to$ TxPlan.
+  \item Safety-first scope: unsigned swap planning only, then owner-wallet handoff.
+\end{itemize}
+\begin{figure}
+  \centering
+  \includegraphics[width=0.62\linewidth]{figures/bad_intent.png}
+  \caption{human laziness (always) + bad NL intent could be lethal}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Project Background Continued}
+\begin{block}{Risk Model (Today)}
+\[
+\begin{aligned}
+\text{Transaction Risk}
+&= \underbrace{L}_{\text{wallet owner laziness (a large constant, we can do nothing)}} \\
+&\quad + \underbrace{A_{\text{NL}}}_{\text{successful NL-based attack on agents}}
+\end{aligned}
+\]
+\[
+A_{\text{NL}} \in \{\text{TxPlan pre-leak, bad TxPlan, \ldots}\}
+\]
+\end{block}
+
+\begin{block}{Optimization Target}
+\[
+\min\; \text{Transaction Risk}_{\text{today}}
+\equiv \min\; A_{\text{NL}} \quad (\text{since } L \text{ is fixed})
+\]
+Goal of this project: minimize successful NL-based attacks.
+\end{block}
+\end{frame}
+
+\begin{frame}{Motivation and Research Gap}
+\begin{itemize}
+  \item Contract-layer security is mature; LLM-mediated planning security is not.
+  \item Prompt-only defenses fail under injection, encoding, and tool/context poisoning.
+  \item Measurable guarantees: lower Attack Success Rate (ASR), lower False Positive (FP) rate, and acceptable latency.
 \end{itemize}
 \end{frame}
 
-\section{Background}
+\section{Specification-Based Development}
 
-\begin{frame}{Key Literature Insights}
+\begin{frame}{Specification-Driven Development in This Project}
 \begin{itemize}
-  \item DeFi security focuses on deterministic smart contracts.
-  \item LLMs vulnerable to prompt injection, jailbreaks, contextual attacks.
-  \item Agentic LLMs fail in tool-mediated workflows without deterministic layers.
+  \item Spec-first baseline: 18 requirements (S-01...S-18) in a formal specifcation markdown.
+  \item Implementation mapping: 22 deterministic rules (R-01...R-22) in specification-rule-mapping.csv.
+  \item Concrete traceability: one-to-many mapping. Example: S-08 (deterministic policy enforcement) $\Rightarrow$ R-03 (slippage $\leq 10\%$)
+  \item Release criteria bound to metrics: S-15/S-16/S-17 enforce ASR, TR, and FP targets in the 100-case harness.
+  \item Developers guided the coding agent with a 35-task checklist, fixed guardrails, and spec/rule checks.
 \end{itemize}
+\vspace{0.3em}
+\textbf{Process chain:} Spec $\rightarrow$ Rules $\rightarrow$ Tests $\rightarrow$ Metrics
 \end{frame}
 
 \section{System Design}
