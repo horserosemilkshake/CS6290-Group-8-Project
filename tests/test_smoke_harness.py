@@ -6,12 +6,12 @@ from harness.runner import SmokeHarness
 
 class AllowAllClient(AgentClient):
     def evaluate_case(self, case):
-        return AgentResponse(observed="ALLOW") # 模拟一个总是返回 "ALLOW"的 AgentClient
+        return AgentResponse(observed="ALLOW")  # Simulate an AgentClient that always returns "ALLOW"
 
 
 """
-测试验证 SmokeHarness 是否能正确运行测试套件
-确保测试报告中的用例数量和攻击成功率符合预期
+Tests verify that SmokeHarness correctly runs the test suite.
+Ensures the case count and attack success rate in test reports meet expectations.
 """
 def test_smoke_harness_runs(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
@@ -26,8 +26,8 @@ def test_smoke_harness_runs(tmp_path: Path) -> None:
 
 
 """
-测试验证 SmokeHarness 在使用自定义 AgentClient 时的行为
-确保测试报告中的攻击成功率反映了 AgentClient 的响应
+Tests verify SmokeHarness behavior when using a custom AgentClient.
+Ensures the attack success rate in test reports reflects the AgentClient's responses.
 """
 def test_smoke_harness_with_client(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]

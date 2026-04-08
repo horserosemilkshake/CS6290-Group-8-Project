@@ -3,8 +3,8 @@ from pathlib import Path
 from harness.artifacts import build_artifact
 
 """
-测试验证 Artifact 构建器 是否能正确识别并脱敏敏感信息
-确保区块链相关的敏感数据（钱包地址、交易哈希）在日志/报告中不会泄露
+Tests verify that the Artifact builder correctly identifies and redacts sensitive information.
+Ensures blockchain-related sensitive data (wallet addresses, transaction hashes) does not leak in logs/reports.
 """
 def test_artifact_redaction_and_flags(tmp_path: Path) -> None:
     payload = {

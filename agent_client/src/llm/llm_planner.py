@@ -61,7 +61,7 @@ class LLMPlanner:
         """Lazily initialize the OpenAI client when first needed."""
         if self._client is None:
             api_key = os.getenv("OPENAI_API_KEY")
-            base_url = os.getenv("OPENAI_BASE_URL")  # 国内模型通常需要自定义 Base URL
+            base_url = os.getenv("OPENAI_BASE_URL")  # Models in certain regions typically require a custom Base URL
 
             if not api_key:
                 raise ValueError(
@@ -69,7 +69,7 @@ class LLMPlanner:
                     "Please add it to the project root .env or set it as an environment variable."
                 )
             
-            # 如果配置了 base_url 则使用，否则默认请求 openai 官方服务器
+            # Use base_url if configured, otherwise default to the official OpenAI server
             if base_url:
                 self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
             else:
@@ -83,7 +83,7 @@ class LLMPlanner:
         """
         print("INFO: [LLM] Calling API to parse intent...")
         
-        # 尝试从环境变量获取自定义模型名，如果没有则默认使用 qwen-plus (适合国内平替) 
+        # Try to get custom model name from environment variable, default to qwen-plus if not set
         # 原本为 gpt-4o-mini
         model_name = os.getenv("LLM_MODEL_NAME", "deepseek-chat")
 

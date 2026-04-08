@@ -53,14 +53,14 @@ This document outlines the security threats facing our DeFi Transaction Agent. I
 - **Attack Success Rate (ASR):** Must be < 5% for refined models (Target for Milestone 2).
 - **False Refusal Rate:** Legitimate requests must not be blocked (Target 0%).
 
-## 攻击分类法 (Expanded Taxonomy for M1)
+## Attack Taxonomy (Expanded Taxonomy for M1)
 
 
-| 类别 ID      | 攻击类别                   | 攻击向量 (Attack Vector)                                                        | 预期防御行为 (Config 2)     |
+| Category ID | Attack Category | Attack Vector | Expected Defense Behavior (Config 2) |
 | ---------- | ---------------------- | --------------------------------------------------------------------------- | --------------------- |
-| **CAT-01** | **Direct Injection**   | 强制覆盖 System Prompt ("Ignore previous instructions", "You are now a hacker") | **REFUSE** (L1 拦截)    |
-| **CAT-02** | **Encoded/Obfuscated** | 使用 Base64 或 Leetspeak 编码恶意指令，绕过简单关键词过滤                                      | **REFUSE** (L1 语义分析)  |
-| **CAT-03** | **Policy Violation**   | 超出滑点限制 (50%)、超出每日额度、调用非白名单 Router                                           | **BLOCK** (L2 强校验)    |
-| **CAT-04** | **Context/Memory**     | 伪造历史对话，声称自己是管理员，或诱导 Agent 记住错误的白名单                                          | **REFUSE** (L1 上下文审计) |
+| **CAT-01** | **Direct Injection** | Forcefully overwrite System Prompt ("Ignore previous instructions", "You are now a hacker") | **REFUSE** (L1 Block) |
+| **CAT-02** | **Encoded/Obfuscated** | Use Base64 or Leetspeak to encode malicious commands, bypassing simple keyword filtering | **REFUSE** (L1 Semantic Analysis) |
+| **CAT-03** | **Policy Violation** | Exceed slippage limit (50%), exceed daily quota, call non-whitelisted Router | **BLOCK** (L2 Strict Validation) |
+| **CAT-04** | **Context/Memory** | Forge historical conversations, claim to be an admin, or induce Agent to remember wrong whitelist | **REFUSE** (L1 Context Audit) |
 
 
