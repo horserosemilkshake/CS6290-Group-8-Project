@@ -4,7 +4,6 @@
 \usepackage[utf8x]{inputenc}
 \usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{grffile}
 
 \mode<presentation>{
   \usetheme{default}
@@ -201,116 +200,6 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
   \item Residual vulnerability concentrated in \textbf{tool poisoning}, where adversarial intent is expressed through valid-looking parameters.
   \item Non-custodial invariant bounds worst-case impact: even successful attacks produce only unsigned plans.
 \end{enumerate}
-\end{frame}
-
-\section{Demo and Discussion}
-
-% Mengmeng SU slide: Telegram Bot Demo
-\begin{frame}{Telegram Bot Demo}
-\begin{columns}[c]
-  \column{0.38\textwidth}
-  \begin{itemize}
-    \setlength{\itemsep}{0.9em}
-    \item \textbf{End-to-end:}\\Telegram msg $\rightarrow$ Agent API $\rightarrow$ L1/L2 guardrails $\rightarrow$ unsigned TxPlan
-    \item \textbf{Non-custodial:}\\pauses at owner signature\\(not broadcasted)
-    \item \textbf{Same interface:}\\shows ALLOW / REFUSE / BLOCK outcomes
-  \end{itemize}
-  \column{0.59\textwidth}
-  \centering
-  \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{figures/Telegram Bot Demo.png}
-\end{columns}
-\end{frame}
-
-% Mengmeng SU slide: Demo Scenarios Explained
-\begin{frame}{Demo Scenarios Explained}
-\begin{columns}[T]
-  \column{0.32\textwidth}
-  \centering
-  {\small\textbf{\textcolor{green!50!black}{ALLOW}}}\\[0.25em]
-  \IfFileExists{figures/Demo1_Allow.png}{%
-    \includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{figures/Demo1_Allow.png}%
-  }{%
-    \fbox{\parbox{0.88\linewidth}{\centering\scriptsize\vspace{0.3em}
-    [Demo1\_Allow.png]\\[0.2em]
-    ``Transaction Plan Ready''\\quote valid, handoff ID\\not broadcasted\vspace{0.3em}}}%
-  }\\[0.35em]
-  \begin{itemize}\setlength{\itemsep}{0.15em}
-    \item[\tiny$\bullet$] \scriptsize Benign swap $\to$ unsigned TxPlan
-    \item[\tiny$\bullet$] \scriptsize Pauses at owner signature
-  \end{itemize}
-  %
-  \column{0.32\textwidth}
-  \centering
-  {\small\textbf{\textcolor{red!70!black}{REFUSE}}}\\[0.25em]
-  \IfFileExists{figures/Demo2_Refuse.png}{%
-    \includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{figures/Demo2_Refuse.png}%
-  }{%
-    \fbox{\parbox{0.88\linewidth}{\centering\scriptsize\vspace{0.3em}
-    [Demo2\_Refuse.png]\\[0.2em]
-    ``Request REFUSED''\\prompt injection\\L1 rejection\vspace{0.3em}}}%
-  }\\[0.35em]
-  \begin{itemize}\setlength{\itemsep}{0.15em}
-    \item[\tiny$\bullet$] \scriptsize Injection detected by L1
-    \item[\tiny$\bullet$] \scriptsize Rejected before planning
-  \end{itemize}
-  %
-  \column{0.32\textwidth}
-  \centering
-  {\small\textbf{\textcolor{orange!80!black}{BLOCK}}}\\[0.25em]
-  \IfFileExists{figures/Demo3_Block.png}{%
-    \includegraphics[width=\linewidth,height=0.50\textheight,keepaspectratio]{figures/Demo3_Block.png}%
-  }{%
-    \fbox{\parbox{0.88\linewidth}{\centering\scriptsize\vspace{0.3em}
-    [Demo3\_Block.png]\\[0.2em]
-    ``Transaction BLOCKED''\\value $>$ cap 5.0 ETH\\L2 policy violation\vspace{0.3em}}}%
-  }\\[0.35em]
-  \begin{itemize}\setlength{\itemsep}{0.15em}
-    \item[\tiny$\bullet$] \scriptsize L2 blocks value $>$ 5.0 ETH
-    \item[\tiny$\bullet$] \scriptsize Deterministic; no LLM bypass
-  \end{itemize}
-\end{columns}
-\end{frame}
-
-% Mengmeng SU slide: Limitations
-\begin{frame}{Limitations}
-\begin{columns}[T]
-  % Left column: first 2 bullets
-  \column{0.48\textwidth}
-  \begin{itemize}\setlength{\itemsep}{0.6em}
-    \item \textbf{External API dependency:}\\
-          Rate limits, timeouts, and latency variability from CoinGecko and 1inch.
-    \item \textbf{Strict-mode tradeoff:}\\
-          Fail-closed avoids silent fallback but reduces robustness when API or network fails.
-  \end{itemize}
-  % Right column: last 2 bullets + image below
-  \column{0.48\textwidth}
-  \begin{itemize}\setlength{\itemsep}{0.6em}
-    \item \textbf{Data freshness / TTL:}\\
-          Snapshots and DEX quotes become stale quickly; expiry enforced end-to-end.
-    \item \textbf{MVP scope:}\\
-          Limited token/router/chain coverage; cross-chain routing out of scope.
-  \end{itemize}
-  \vspace{0.5em}
-  \centering
-  \IfFileExists{figures/limitation_coingecko_snapshot.png}{%
-    \includegraphics[width=0.92\linewidth,height=0.32\textheight,keepaspectratio]{figures/limitation_coingecko_snapshot.png}%
-  }{%
-    \fbox{\parbox{0.88\linewidth}{\centering\scriptsize\vspace{0.3em}
-    [limitation\_coingecko\_snapshot.png]\\Live CoinGecko snapshot\vspace{0.3em}}}%
-  }\\[0.15em]
-  {\scriptsize Live CoinGecko snapshot -- real-tools integration}
-\end{columns}
-\end{frame}
-
-% Mengmeng SU slide: Future Work
-\begin{frame}{Future Work}
-\begin{itemize}\setlength{\itemsep}{0.65em}
-  \item \textbf{Stronger tool-poisoning defenses:} semantic intent verification and multi-source cross-checking to catch adversarial parameters in valid-looking inputs.
-  \item \textbf{Reliability for live tools:} caching, retries with backoff, and circuit breakers to maintain strict-mode semantics under API instability.
-  \item \textbf{Observability:} structured logs, per-tool latency and error-rate dashboards, alerting on anomalous tool audit trails.
-  \item \textbf{Expanded evaluation:} multi-turn arena attacks, p95 latency benchmarking, adversarial prompt corpus.
-  \item \textbf{Owner UX:} richer handoff UI with quote-refresh flow and clearer signature boundary for non-technical users.
-\end{itemize}
 \end{frame}
 
 \section{Conclusion}

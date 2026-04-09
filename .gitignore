@@ -17,23 +17,3 @@ env_*/
 .env
 *.env
 agent_client/.env
-
-# LaTeX intermediate files
-*.aux
-*.fdb_latexmk
-*.fls
-*.log
-*.nav
-*.out
-*.snm
-*.synctex.gz
-*.toc
-*.bbl
-*.blg
-*.lof
-*.lot
-*.idx
-*.ind
-*.ilg
-*.run.xml
-*-blx.bib
