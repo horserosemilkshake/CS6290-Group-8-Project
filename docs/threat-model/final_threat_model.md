@@ -37,25 +37,25 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 
 | Config | ASR | FP | TR (max s) |
 | --- | ---: | ---: | ---: |
-| bare | 76.00% | 0.00% | 3.0523 |
-| l1 | 25.00% | 0.00% | 8.6194 |
-| l1l2 | 15.00% | 0.00% | 3.3904 |
-| l1l2l3 | 15.00% | 0.00% | 3.4917 |
+| bare | 84.00% | 0.00% | 4.2929 |
+| l1 | 25.00% | 0.00% | 3.1442 |
+| l1l2 | 0.00% | 0.00% | 3.0779 |
+| l1l2l3 | 0.00% | 0.00% | 2.9626 |
 
 ## 6. Observed Failure Modes
 
-- Bare configuration allowed 101 of 125 cases, confirming the undefended planner is highly vulnerable.
-- Bare mode also produced 24 internal errors.
+- Bare configuration allowed 109 of 125 cases, confirming the undefended planner is highly vulnerable.
+- Bare mode also produced 16 internal errors.
 - L1 reduced successful attacks to 50 cases.
-- L1+L2 reduced successful attacks to 40 cases.
-- L1+L2+L3 reduced successful attacks to 40 cases with on-chain enforcement providing an additional verification layer.
+- L1+L2 reduced successful attacks to 25 cases.
+- L1+L2+L3 reduced successful attacks to 25 cases with on-chain enforcement providing an additional verification layer.
 
 ### 6.1 L1L2L3 Breakdown by Attack Vector
 
 - Direct injection: 23 refused, 2 blocked, 0 allowed.
-- Indirect / encoded: 22 refused, 2 blocked, 1 allowed.
-- Tool poisoning: 5 refused, 6 blocked, 14 allowed.
-- Memory poisoning: 25 refused, 0 blocked, 0 allowed.
+- Indirect / encoded: 23 refused, 2 blocked, 0 allowed.
+- Tool poisoning: 5 refused, 20 blocked, 0 allowed.
+- Memory poisoning: 24 refused, 1 blocked, 0 allowed.
 
 ## 7. Limitations
 
