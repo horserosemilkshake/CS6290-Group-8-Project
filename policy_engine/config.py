@@ -14,6 +14,10 @@ import os
 ALLOWED_TOKENS: frozenset = frozenset({
     "ETH", "WETH", "USDC", "USDT", "DAI",
 })
+# L3 validation experiment: uncomment to simulate L2 misconfiguration
+# ALLOWED_TOKENS: frozenset = frozenset({
+#     "ETH", "WETH", "USDC", "USDT", "DAI", "WBTC",
+# })
 
 # ── Router (DEX aggregator) allowlist ────────────────────────────────────────
 ALLOWED_ROUTERS: frozenset = frozenset({

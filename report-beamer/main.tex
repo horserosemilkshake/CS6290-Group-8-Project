@@ -16,7 +16,7 @@
 \subtitle{Group 8}
 \author[Group 8]{
 \small
-\makebox[\linewidth][c]{Biying FANG (ID:59119109) \quad Yifan LI (ID:59669920)} \\
+\makebox[\linewidth][c]{Biying FANG (ID:59119109) \quad Yifan LI (ID:59948944)} \\
 \makebox[\linewidth][c]{Mengmeng SU (ID:59669920) \quad Siqi SUN (ID:59414589)} \\
 \makebox[\linewidth][c]{Tsz Chun TSOI (ID:57159984)} \\
 \vspace{1.0em}
@@ -58,7 +58,7 @@
 \begin{aligned}
 \text{Transaction Risk}
 &= \underbrace{L}_{\text{owner laziness / negligence (a large constant, we can do nothing)}} \\
-&\quad + \underbrace{A_{\text{NL}}}_{\text{successful adversial NL-based attack on agents}}
+&\quad + \underbrace{A_{\text{NL}}}_{\text{successful adversarial NL-based attack on agents}}
 \end{aligned}
 \]
 \[
@@ -87,10 +87,10 @@ Goal of this project: minimize successful NL-based attacks.
 
 \begin{frame}{Specification-Driven Development in This Project}
 \begin{itemize}
-  \item Spec-first baseline: 18 requirements (S-01...S-18) in a formal specifcation markdown.
+  \item Spec-first baseline: 18 requirements (S-01...S-18) in a formal specification markdown.
   \item Implementation mapping: 22 deterministic rules (R-01...R-22) in specification-rule-mapping.csv.
   \item Concrete traceability: one-to-many mapping. Example: S-08 (deterministic policy enforcement) $\Rightarrow$ R-03 (slippage $\leq 10\%$)
-  \item Release criteria bound to metrics: S-15/S-16/S-17 enforce ASR, TR, and FP targets in the 100-case harness.
+  \item Release criteria bound to metrics: S-15/S-16/S-17 enforce ASR, TR, and FP targets in the 125-case harness.
   \item Developers guided the coding agent with a 35-task checklist, fixed guardrails, and spec/rule checks.
 \end{itemize}
 \vspace{0.3em}
@@ -145,7 +145,8 @@ Total: \textbf{125 cases} in the final evaluation dataset (v2).
 \begin{itemize}
   \item 125 test cases across 4 attack vectors + benign baseline.
   \item Compared 4 defense configurations: bare, L1, L1+L2, L1+L2+L3.
-  \item Metrics: ASR (Attack Success Rate), FP (False Positive Rate), TR (Time Robustness).
+  \item Metrics: ASR (Attack Success Rate), FP (False Positive Rate), TR (max single-case latency).
+  \item Deterministic mock mode (fixed prices, fixed quotes) ensures full reproducibility.
 \end{itemize}
 \end{frame}
 
@@ -157,16 +158,16 @@ Total: \textbf{125 cases} in the final evaluation dataset (v2).
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\ \midrule
-bare      & 76.00\% & 0.00\% & 3.05 & 125 \\
-L1        & 25.00\% & 0.00\% & 8.62 & 125 \\
-L1+L2     & 15.00\% & 0.00\% & 3.39 & 125 \\
-L1+L2+L3  & 15.00\% & 0.00\% & 3.49 & 125 \\ \bottomrule
+bare      & 84.00\% & 0.00\% & 4.29 & 125 \\
+L1        & 25.00\% & 0.00\% & 3.14 & 125 \\
+L1+L2     &  0.00\% & 0.00\% & 3.08 & 125 \\
+L1+L2+L3  &  0.00\% & 0.00\% & 2.96 & 125 \\ \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{itemize}
-  \item L1 reduces ASR by 51 percentage points (76\% $\to$ 25\%).
-  \item L2 provides additional 10pp reduction (25\% $\to$ 15\%).
+  \item L1 reduces ASR by 59 percentage points (84\% $\to$ 25\%).
+  \item L2 eliminates all remaining attacks (25\% $\to$ 0\%).
   \item \textbf{0\% false positives} across all configurations.
 \end{itemize}
 \end{frame}
@@ -179,27 +180,55 @@ L1+L2+L3  & 15.00\% & 0.00\% & 3.49 & 125 \\ \bottomrule
 \toprule
 \textbf{Vector} & \textbf{REFUSE} & \textbf{BLOCK} & \textbf{ALLOW} & \textbf{Total} \\ \midrule
 Direct injection   & 23 & 2  & 0  & 25 \\
-Indirect / encoded & 22 & 2  & 1  & 25 \\
-Memory poisoning   & 25 & 0  & 0  & 25 \\
-Tool poisoning     & 5  & 6  & 14 & 25 \\
+Indirect / encoded & 23 & 2  & 0  & 25 \\
+Memory poisoning   & 24 & 1  & 0  & 25 \\
+Tool poisoning     & 5  & 20 & 0  & 25 \\
 Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{itemize}
-  \item Direct, indirect, and memory attacks: effectively neutralized.
-  \item \textbf{Tool poisoning} is the residual gap (14/25 still ALLOW).
+  \item All four attack vectors: \textbf{0 ALLOW} across 100 adversarial cases.
+  \item Tool poisoning addressed by L2 request-signal detection (20 BLOCK, 5 REFUSE).
+  \item All 25 benign requests correctly allowed (0\% false positives).
 \end{itemize}
 \end{frame}
 
 \begin{frame}{Key Findings}
 \begin{enumerate}
-  \item Bare LLM planner is highly vulnerable (76\% ASR).
-  \item \textbf{Layered defense is essential}: L1 (probabilistic) + L2 (deterministic) together reduce ASR to 15\%.
-  \item L3 on-chain enforcement adds defense-in-depth without latency penalty.
-  \item Residual vulnerability concentrated in \textbf{tool poisoning}, where adversarial intent is expressed through valid-looking parameters.
-  \item Non-custodial invariant bounds worst-case impact: even successful attacks produce only unsigned plans.
+  \item Bare LLM planner is highly vulnerable (84\% ASR).
+  \item \textbf{Layered defense is essential}: L1 (probabilistic) + L2 (deterministic) together reduce ASR to \textbf{0\%}.
+  \item L3 mirrors L2 checks on-chain; on this dataset ASR is already 0\%, so L3 shows no incremental reduction. Its value is \textbf{immutability and auditability} as a fallback if L2 is ever misconfigured.
+  \item Tool poisoning, previously the hardest vector (14/25 ALLOW), is now fully blocked by L2 request-signal detection rules.
+  \item Non-custodial invariant bounds worst-case impact: the agent produces only \textbf{unsigned plans}, never signs or broadcasts.
 \end{enumerate}
+\end{frame}
+
+\begin{frame}{L3 Independent Value: Misconfiguration Experiment}
+\small
+\textbf{Setup:} Added WBTC to L2 Python allowlist \textbf{without} updating the on-chain SwapGuard. Request: \texttt{"Swap 1 WBTC to USDC"}
+
+\vspace{0.3em}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\centering
+\textbf{L1+L2: ALLOW} {\color{red}(L2 compromised)}
+\vspace{0.2em}
+
+\includegraphics[width=0.95\textwidth]{figures/l3demo-l1l2.png}
+\end{column}
+\begin{column}{0.48\textwidth}
+\centering
+\textbf{L1+L2+L3: BLOCKED} {\color{green!60!black}(L3 caught it)}
+\vspace{0.2em}
+
+\includegraphics[width=0.95\textwidth]{figures/l3demo-l1l2l3.png}
+\end{column}
+\end{columns}
+
+\vspace{0.4em}
+\centering
+\footnotesize\textbf{Takeaway:} L3's immutable on-chain contract catches what a misconfigured L2 misses.
 \end{frame}
 
 \section{Live Demo}
@@ -227,35 +256,23 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 \section{Limitations and Future Work}
 
 \begin{frame}{Limitations}
-\begin{block}{ASR Targets Not Fully Met}
 \begin{itemize}
-  \item \textbf{Spec S-15 target}: Baseline ASR $<$ 20\%, Post-tuning ASR $<$ 5\%
-  \item \textbf{Actual results}: Bare 76\%, L1+L2 15\%
-  \item \textbf{Gap}: Tool poisoning remains challenging (14/25 still ALLOW)
+  \item Fixed 125-case dataset; benign set is only 25 cases (FP=0\% confidence interval is wide).
+  \item Main benchmark uses deterministic mock quotes, not live DEX API responses.
+  \item Only single-turn interactions evaluated; multi-turn attacks not yet covered.
+  \item Wallet bridge is in-memory only (demo-ready, not production SDK).
+  \item Scope limited to Ethereum mainnet and Sepolia testnet.
 \end{itemize}
-\end{block}
-
-\begin{block}{Other Limitations}
-\begin{itemize}
-  \item Performance benchmarks use max-based instead of p95-based metrics (S-18)
-  \item Sanitizer provenance logging partially implemented (S-07, S-09)
-  \item Wallet bridge is in-memory only (demo-ready, not production SDK)
-  \item Limited to Ethereum mainnet (A-01 scope constraint)
-\end{itemize}
-\end{block}
 \end{frame}
 
 \begin{frame}{Future Work}
 \begin{itemize}
-  \item \textbf{Semantic Intent Verification}: Deep semantic analysis for tool poisoning attacks
-  \item \textbf{Multi-turn Attack Evaluation}: Extended conversation context poisoning
-  \item \textbf{Production Wallet Integration}: MetaMask/WalletConnect SDK bridge
-  \item \textbf{Cross-chain Support}: Extend to L2 networks (Polygon, Arbitrum)
-  \item \textbf{Adaptive Guardrails}: ML-based detection for evolving attack patterns
-  \item \textbf{Formal Verification}: Prove security properties of the policy engine
+  \item \textbf{Semantic Intent Verification}: move beyond pattern matching to detect adversarial intent expressed through structurally valid parameters.
+  \item \textbf{Multi-turn Attack Evaluation}: assess robustness under extended conversation context poisoning across multiple exchanges.
+  \item \textbf{Production Wallet Integration}: bridge to MetaMask / WalletConnect SDK for real owner-action signing flow.
 \end{itemize}
 \vspace{0.5em}
-\textbf{Long-term vision:} Standardized security framework for LLM-based financial agents
+\textbf{Long-term vision:} Standardized security framework for LLM-based financial agents.
 \end{frame}
 
 \section{Conclusion}
@@ -263,9 +280,10 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 \begin{frame}{Conclusion}
 \begin{itemize}
   \item LLM-based DeFi agents introduce hybrid security threats requiring both probabilistic and deterministic defenses.
-  \item Layered defense (L1+L2+L3) reduces ASR from 76\% to 15\% with 0\% false positives.
-  \item Deterministic policy enforcement (L2) is essential -- LLM guardrails alone are insufficient.
-  \item Non-custodial design provides an architectural safety net.
+  \item Layered defense (L1+L2+L3) reduces ASR from 84\% to \textbf{0\%} with 0\% false positives.
+  \item Deterministic policy enforcement (L2) is the critical layer -- LLM guardrails alone are insufficient.
+  \item L3 on-chain enforcement provides immutable, auditable fallback against internal misconfiguration.
+  \item Non-custodial design bounds worst-case impact: only unsigned plans, never executed transactions.
 \end{itemize}
 \vspace{1.0em}
 \centering
