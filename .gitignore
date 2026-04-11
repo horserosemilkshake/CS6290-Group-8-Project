@@ -5,6 +5,7 @@ artifacts/*
 !artifacts/three_config_comparison_adv_100_cases.json
 !artifacts/final_results/
 !artifacts/final_results/*
+.DS_Store
 .vscode/
 docs_wren/
 __pycache__/
