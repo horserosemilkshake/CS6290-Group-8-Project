@@ -22,6 +22,7 @@ verified normalization and policy path.
 | Telegram Bot | `telegram_bot/` | Optional chat frontend |
 | Harness | `harness/` + `scripts/` | ASR / FP / TR evaluation pipeline |
 | Report Assets | `report-latex/` | Final paper source, figures, tables |
+| Presentation | `report-beamer/` | Beamer slides for final presentation |
 
 ## Security Posture
 
@@ -45,10 +46,10 @@ Latest checked-in `v2` comparison artifact on 125 cases:
 
 | Config | ASR | FP | TR (max) |
 | --- | ---: | ---: | ---: |
-| `bare` | 76.00% | 0.00% | 3.0523s |
-| `l1` | 25.00% | 0.00% | 8.6194s |
-| `l1l2` | 15.00% | 0.00% | 3.3904s |
-| `l1l2l3` | 15.00% | 0.00% | 3.4917s |
+| `bare` | 84.00% | 0.00% | 4.2929s |
+| `l1` | 25.00% | 0.00% | 3.1442s |
+| `l1l2` | 0.00% | 0.00% | 3.0779s |
+| `l1l2l3` | 0.00% | 0.00% | 2.9626s |
 
 Artifacts live under `artifacts/final_results/`.
 
