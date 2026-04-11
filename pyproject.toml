@@ -12,6 +12,8 @@ dependencies = [
     "requests>=2.28",
     "httpx>=0.27",
     "python-telegram-bot>=20.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.44.0",
 ]
 
 [project.optional-dependencies]
@@ -20,4 +22,9 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+
+[dependency-groups]
+dev = [
+    "uvicorn>=0.44.0",
+]
 # pythonpath requires pytest>=7; set PYTHONPATH=. manually when running tests.
