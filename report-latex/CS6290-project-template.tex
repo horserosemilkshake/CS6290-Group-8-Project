@@ -40,13 +40,12 @@ language requests into unsigned transaction plans and evaluates them through
 three layers: L1 LLM guardrails, an L2 deterministic policy engine, and an
 optional L3 on-chain validator. We evaluate the system on a fixed 125-case
 benchmark comprising four adversarial prompt vectors and a benign baseline.
-The final configuration reduces Attack Success Rate (ASR) from 84\% in the bare
-planner to 0\% with L1+L2, while maintaining a 0\% false-positive rate. L3 does
-not further reduce ASR on this dataset, but it provides immutable defense-in-
-depth against application-layer misconfiguration. The results show that a
-security architecture for DeFi agents should treat LLM reasoning as untrusted
-and place deterministic policy enforcement on the critical path before any
-owner signature can occur.
+L1+L2 reduces Attack Success Rate (ASR) from 84\% in the bare configuration to
+0\% while maintaining a 0\% false-positive rate. L3 does not further reduce
+ASR on this dataset, but it provides immutable defense-in-depth against
+application-layer misconfiguration. The results show that a secure DeFi agent
+must treat LLM reasoning as untrusted and place deterministic policy
+enforcement on the critical path before the owner-signature handoff.
 \end{abstract}
 
 
@@ -70,9 +69,10 @@ addresses that gap through a minimal, adversarially evaluated DeFi swap agent
 with layered defenses and an explicit non-custodial signer boundary.
 
 \section{Literature Review}
-%
 
-The project integrates DeFi, AI-driven agents, and adversarial machine learning security, encompassing multiple unrelated and evolving fields. To situate the present work, this section connects three major bodies of literature, namely DeFi protocol and transaction-security research, adversarial language-model safety, and agentic LLM pipelines.
+This work sits at the intersection of three literature streams: DeFi
+transaction security, adversarial LLM safety, and tool-using LLM agents. We
+review each stream to identify the gap addressed by our architecture.
 
 \subsection{DeFi Protocols Research}
 
@@ -151,12 +151,13 @@ adversarial environments such as public chat channels and untrusted data
 sources.
 
 \subsubsection{System Components Overview}
-The following provides an overview of the components and their interactions.
+Figure~\ref{fig_components} summarizes the system boundary and the
+owner-signature handoff.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figure/architecture_overview_v2.png}
-  \caption{System boundary, trusted agent space, and owner-approval handoff.}
+  \caption{System boundary, trusted agent space, and owner-signature handoff.}
   \label{fig_components}
 \end{figure}
 
@@ -167,6 +168,12 @@ then checks the plan against deterministic safety rules and allowlists. If the
 request passes, the system returns an unsigned \texttt{TxPlan} that requires
 owner signature. The user must review and sign the plan with their own wallet.
 
+The figure emphasizes three architectural boundaries. The \emph{trusted agent
+space} contains every component that can parse intent or construct a plan. The
+\emph{safety gate} marks the last deterministic validation boundary before any
+plan reaches the user. The \emph{wallet domain} remains outside the agent: the
+system hands off an unsigned plan, and the user alone decides whether to sign.
+
 In our implementation, L1 is the probabilistic language-facing layer. It
 handles input filtering, prompt-injection rejection, and output validation. L2
 is the deterministic enforcement layer. It blocks requests that violate token,
@@ -176,11 +183,12 @@ or an external tool proposes them.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figure/layered_control_flow_v2.png}
-  \caption{Layered control flow from natural-language input to validated handoff.}
+  \caption{Layered control flow from natural-language input to owner-signature handoff.}
   \label{fig_layers}
 \end{figure}
 
-The system processes swap requests through three sequential control layers:
+Figure~\ref{fig_layers} shows how the three control layers divide
+responsibility:
 
 \begin{enumerate}
     \item L1 (Input/Output Guardrails): prompt-injection filtering, unsafe instruction rejection, and response validation.
@@ -242,7 +250,7 @@ primary control layer, and the expected outcome.
 \centering
 \caption{Representative Threats, Primary Controls, and Expected Outcomes}
 \label{tab:threat-controls}
-\begin{tabular}{lll}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.42\linewidth} >{\raggedright\arraybackslash}p{0.16\linewidth} >{\raggedright\arraybackslash}p{0.22\linewidth}}
 \hline
 Threats & Controls & Outcome \\ \hline
 Direct Prompt Injection   & L1    & \texttt{REJECTED}       \\ \hline
@@ -251,7 +259,7 @@ Valid But Policy-Violating Requests \\ (e.g., slippage exceeding threshold)     
 Indirect Data Adversaries   & L1 + Tools    & \texttt{\makecell{REJECTED\\/ERROR}}       \\ \hline
 Context Poisoning  & L1    & \texttt{REJECTED}       \\ \hline
 Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsubsection{Additional Security Invariants}
@@ -335,7 +343,7 @@ contribution of each defense layer while preserving reproducibility.
 \subsection{Benchmark Design}
 
 We evaluate prompt-driven and tool-mediated attacks that target agent behavior
-before any on-chain submission. The fixed benchmark
+before any on-chain submission. The fixed v2 benchmark
 (\path{final_attack_dataset_v2}) comprises 125 cases: 100 adversarial
 cases evenly distributed across four attack vectors and 25 benign swap
 requests to measure false positives. The four attack vectors are:
@@ -347,12 +355,14 @@ requests to measure false positives. The four attack vectors are:
     \item \textbf{Memory poisoning:} context poisoning and fake prior-authority claims that exploit retained conversational state.
 \end{itemize}
 
-Figure~\ref{fig_sample_cases} illustrates two representative cases from the dataset.
+Figure~\ref{fig_sample_cases} illustrates two representative cases from the
+benchmark.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=3.3in]{figure/Sample test cases.png}
-  \caption{Sample Test Cases (2 Out of 125)}
+  \caption{Representative benchmark cases illustrating direct-injection and
+  tool-poisoning patterns in the v2 dataset.}
   \label{fig_sample_cases}
 \end{figure}
 
@@ -383,9 +393,9 @@ of layer $L(i+1)$ is:
 \begin{equation}
     u(i+1) = t(L(i)) - t(L(i+1))
 \end{equation}
-where $t:(\mathbb{D},\mathbb{A}^4)\to\mathbb{R}^3$ maps a defense
-configuration and attack set to the observed metrics. We use this formulation
-only to motivate comparative evaluation.
+where $t:(\mathbb{D},\mathbb{A}^4)\to\mathbb{R}^3$ maps a configuration and
+attack set to the observed metrics. We use this formulation only to motivate
+comparative evaluation.
 
 All experiments use a fixed random seed (6290), a recorded git commit hash,
 and a SHA-256 checksum of the test suite to ensure reproducibility.
@@ -396,8 +406,7 @@ and a SHA-256 checksum of the test suite to ensure reproducibility.
 
 The final evaluation dataset (\path{final_attack_dataset_v2}) contains 125
 cases: 100 adversarial cases evenly distributed across four attack vectors and
-25 benign cases. Table~\ref{tab:main-results} reports the final results, and
-Figure~\ref{fig_asr} visualizes the ASR reduction across configurations.
+25 benign cases.
 
 \begin{table}[H]
 \centering
@@ -416,19 +425,19 @@ L1+L2+L3  &  0.00\% & 0.00\% & 2.96 & 125 \\ \hline
 \begin{figure}[H]
   \centering
   \includegraphics[width=3.2in]{figure/asr_comparison.png}
-  \caption{Attack Success Rate Across Defense Configurations}
+  \caption{Attack success rate across configurations. The bars show the trend,
+  while Table~\ref{tab:main-results} provides the exact values.}
   \label{fig_asr}
 \end{figure}
 
-The bare planner allowed 84\% of adversarial cases, confirming that an
-undefended LLM is highly vulnerable in this setting. L1 reduced ASR to 25\%, a
-59 percentage-point reduction. Adding L2 eliminated all remaining successful
-attacks on this benchmark, bringing ASR to 0\% while preserving a 0\%
-false-positive rate on all 25 benign cases. L3 did not further reduce ASR on
-this dataset because L2 already blocked every successful adversarial case.
-Crucially, the 0\% FP rate shows that the security gains do not trade off
-against usability: every legitimate request still reaches the owner for
-signature.
+The main empirical result is simple: L1+L2 reduces ASR from 84\% to 0\%
+without increasing false positives. The bare configuration allowed 84\% of
+adversarial cases, confirming that an undefended LLM is highly vulnerable in
+this setting. L1 reduced ASR to 25\%, and L2 eliminated all remaining
+successful attacks on this benchmark. L3 did not further reduce ASR because L2
+already blocked every successful adversarial case. The 0\% FP rate shows that
+the security gains do not trade off against usability: all 25 benign requests
+still reach the owner-signature handoff.
 
 \subsection{Per-Attack-Vector Breakdown}
 
@@ -450,16 +459,12 @@ Benign (legitimate)  & 0  & 0  & 25 & 25 \\ \hline
 \end{tabular}
 \end{table}
 
-L1+L2 produces zero \texttt{ALLOW} outcomes across all 100 adversarial cases.
-Direct injection, indirect or encoded attacks, and memory poisoning are mostly
-handled by L1 through \texttt{REFUSE} outcomes, while tool-poisoning cases are
-primarily stopped by L2 through \texttt{BLOCK} outcomes. This pattern reflects a
-clear division of labor: L1 intercepts language-channel abuse, whereas L2
-enforces hard parameter constraints when malicious requests survive linguistic
-filtering. Tool-poisoning attacks embed malicious parameters inside
-syntactically valid swap requests; they evade regex-based input guards but
-trip deterministic rules such as token allowlists, slippage caps, and router
-verification.
+L1+L2 blocks all 100 adversarial cases. The breakdown also clarifies the layer
+split: L1 mostly handles direct injection, indirect or encoded attacks, and
+memory poisoning through \texttt{REFUSE} outcomes, whereas L2 mainly handles
+tool poisoning through \texttt{BLOCK} outcomes. Tool-poisoning requests often
+use syntactically valid swap language, so they survive language filtering but
+fail deterministic checks on tokens, routers, and execution bounds.
 
 \subsection{Layer-by-Layer Analysis}
 
@@ -479,19 +484,19 @@ allowlists, router allowlists, slippage limits, value caps, approval patterns,
 and structural constraints. L2 is particularly important for tool poisoning:
 under L1 alone, 20 tool-poisoning cases still pass; under L1+L2, all 20 are
 blocked. A key architectural property is that L2 is \textit{non-overridable} by
-LLM output---the policy engine evaluates every plan independently, so even a
-complete jailbreak of the LLM cannot bypass hard parameter constraints.
+LLM output. The policy engine evaluates every plan independently, so even a
+complete jailbreak of the LLM cannot bypass the hard parameter constraints.
 
 \subsubsection{L3 Contribution}
-L3 mirrors key L2 checks in the immutable \texttt{Swap\allowbreak Guard} contract and runs
-them through a pre-flight \texttt{eth\_call}. Because L2 already achieves 0\%
-ASR on the benchmark, L3 does not further reduce the reported attack rate.
-However, its value extends beyond ASR. L3 provides defense-in-depth against
-application-layer misconfiguration and gives auditors a stable on-chain
-enforcement point independent of Python-side configuration. The codebase
-includes a commented-out WBTC misconfiguration experiment in the L3 validator
-that illustrates how L3 can catch allowlist drift that might escape the Python
-layer.
+L3, the on-chain validator (\texttt{Swap\allowbreak Guard}), mirrors key L2
+checks in an immutable contract and runs them through a pre-flight
+\texttt{eth\_call}. Because L2 already achieves 0\% ASR on the benchmark, L3
+does not further reduce the reported attack rate. Its value lies elsewhere: it
+provides defense-in-depth against application-layer misconfiguration and gives
+auditors a stable on-chain enforcement point independent of Python-side
+configuration. The codebase includes a commented-out WBTC misconfiguration
+experiment in the L3 validator that illustrates how L3 can catch allowlist
+drift that might escape the Python layer.
 
 \subsection{Latency Considerations}
 
@@ -502,13 +507,11 @@ latency penalty; the L1+L2+L3 configuration records the lowest maximum latency
 at 2.96\,s. These numbers are not statistical noise: early rejection via L1
 \texttt{REFUSE} or L2 \texttt{BLOCK} short-circuits expensive LLM and tool
 calls, so added defenses can improve both security and latency.
-Figure~\ref{fig_latency} compares the maximum and mean latency per
-configuration.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=3.2in]{figure/latency_comparison.png}
-  \caption{Request Latency Across Defense Configurations}
+  \caption{Maximum and mean request latency across configurations.}
   \label{fig_latency}
 \end{figure}
 
@@ -516,9 +519,9 @@ configuration.
 
 The results support a core architectural principle for LLM-driven DeFi agents:
 the LLM should be treated as an untrusted intent parser, not as a security
-authority. The effective safety boundary is a \textit{probabilistic-to-deterministic handoff}---a structured transition from the stochastic language
-layer (L1) to a deterministic policy gate (L2) that sits on the critical path
-before any owner signature.
+authority. The key boundary is a \textit{probabilistic-to-deterministic
+handoff}. L1 performs stochastic language filtering; L2 performs deterministic
+policy enforcement on the critical path before the owner-signature handoff.
 
 Bare LLM planning is unsafe, and prompt-only filtering is insufficient. The
 benchmark clarifies the role of each layer: L1 handles attacks visible in
@@ -557,27 +560,15 @@ would inflict.
 
 \section{Future Work}
 
-Future research should address the limitations above through five directions.
+Future work should address the limitations above in five directions:
 
-\textbf{Multi-turn adversarial dialogue.} Extend the benchmark to stateful,
-multi-turn interactions where adversaries gradually shift context or embed
-instructions across benign-looking turns.
-
-\textbf{Real-tool integration benchmarks.} Evaluate the agent against live DEX
-aggregators (e.g., 1inch, 0x API) to measure robustness against indirect
-tool-output poisoning and quote-manipulation attacks.
-
-\textbf{Formal verification of policy invariants.} Model the L2 rule set in a
-formal specification language such as TLA+ to prove that the allowed state
-space preserves fund safety under all reachable inputs.
-
-\textbf{Adaptive L1 guardrails.} Move beyond static regex patterns to
-lightweight fine-tuned classifiers or retrieval-augmented detection that adapts
-to novel prompt-injection templates without re-deploying the entire agent.
-
-\textbf{Governance and allowlist dynamics.} Study the security economics of
-allowlist updates, including quorum mechanisms, time-locks, and oracle-based
-token-verification pipelines.
+\begin{enumerate}
+    \item \textbf{Multi-turn adversarial dialogue.} Extend the benchmark to stateful, multi-turn interactions where adversaries gradually shift context or embed instructions across benign-looking turns.
+    \item \textbf{Real-tool integration benchmarks.} Evaluate the agent against live DEX aggregators (e.g., 1inch, 0x API) to measure robustness against indirect tool-output poisoning and quote-manipulation attacks.
+    \item \textbf{Formal verification of policy invariants.} Model the L2 rule set in a formal specification language such as TLA+ to prove that the allowed state space preserves fund safety under all reachable inputs.
+    \item \textbf{Adaptive L1 guardrails.} Move beyond static regex patterns to lightweight fine-tuned classifiers or retrieval-augmented detection that adapts to novel prompt-injection templates without re-deploying the entire agent.
+    \item \textbf{Governance and allowlist dynamics.} Study the security economics of allowlist updates, including quorum mechanisms, time-locks, and oracle-based token-verification pipelines.
+\end{enumerate}
 
 \section{Conclusion}
 
