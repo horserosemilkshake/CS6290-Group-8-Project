@@ -10,6 +10,7 @@
 \usepackage{tabularx}
 \usepackage{makecell}
 \usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
 
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
@@ -31,6 +32,10 @@ Email: tszctsoi4-c@my.cityu.edu.hk} }
 
 
 \maketitle
+
+\begin{center}
+\footnotesize\textbf{Source code:} \url{https://github.com/horserosemilkshake/CS6290-Group-8-Project}
+\end{center}
 
 \begin{abstract}
 Large language model (LLM) agents are beginning to mediate DeFi workflows, but
@@ -121,15 +126,16 @@ constraints instead of relying on prompt-only defenses.
 
 \begin{table}[H]
 \centering
-\caption{Summary of Research Domains, Targets, Limitations}
+\caption{What Existing Literature Covers and Misses}
 \label{tab:literature-summary}
-\begin{tabular}{lll}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} >{\raggedright\arraybackslash}p{0.28\linewidth} X}
 \hline
-Domain & Address & Does not address \\ \hline
-DeFi security  & \makecell{deterministic\\code\\vulnerabilities}    & \makecell{language misinterpretation\\and adversarial manipulation\\at the prompt layer}      \\ \hline
-LLM safety     & \makecell{linguistic-contextual\\ attack surfaces}                & \makecell{high-stakes consequences\\ of financial execution}        \\ \hline
-\makecell{LLM agent\\research}     & \makecell{risks from\\tool interaction and\\ multi-step workflows}                & \makecell{non-custodial architectures and\\ open messaging ecosystems}       \\ \hline
-\end{tabular}
+\textbf{Stream} & \textbf{Covers} & \textbf{Misses} \\ \hline
+DeFi security  & Deterministic contract bugs and execution risks & Prompt-layer misinterpretation and adversarial language manipulation \\ \hline
+LLM safety     & Linguistic and contextual attack surfaces & Financial execution consequences and signer-boundary design \\ \hline
+LLM agent research & Tool-use failures and multi-step agent risk & Non-custodial transaction planning in open messaging environments \\ \hline
+\end{tabularx}
 \end{table}
 
 Our prototype addresses this intersection of blind spots by showing how LLM
@@ -248,17 +254,18 @@ primary control layer, and the expected outcome.
 
 \begin{table}[H]
 \centering
-\caption{Representative Threats, Primary Controls, and Expected Outcomes}
+\caption{Threats, Dominant Control Layer, and Expected Result}
 \label{tab:threat-controls}
-\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.42\linewidth} >{\raggedright\arraybackslash}p{0.16\linewidth} >{\raggedright\arraybackslash}p{0.22\linewidth}}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.48\linewidth} >{\centering\arraybackslash}p{0.12\linewidth} >{\raggedright\arraybackslash}p{0.20\linewidth}}
 \hline
-Threats & Controls & Outcome \\ \hline
-Direct Prompt Injection   & L1    & \texttt{REJECTED}       \\ \hline
-Jailbreak / Role-Play Escalation     & L1                & \texttt{REJECTED}        \\ \hline
-Valid But Policy-Violating Requests \\ (e.g., slippage exceeding threshold)     & L2                & \texttt{BLOCKED}        \\ \hline
-Indirect Data Adversaries   & L1 + Tools    & \texttt{\makecell{REJECTED\\/ERROR}}       \\ \hline
-Context Poisoning  & L1    & \texttt{REJECTED}       \\ \hline
-Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
+\textbf{Threat} & \textbf{Layer} & \textbf{Result} \\ \hline
+Direct prompt injection & L1 & \texttt{REJECTED} \\ \hline
+Jailbreak or role-play escalation & L1 & \texttt{REJECTED} \\ \hline
+Policy-violating but valid-looking requests & L2 & \texttt{BLOCKED} \\ \hline
+Indirect data injection through tools & L1+Tools & \texttt{REJECTED} or \texttt{ERROR} \\ \hline
+Context poisoning & L1 & \texttt{REJECTED} \\ \hline
+Information leakage attempts & L1 & \texttt{REJECTED} \\ \hline
 \end{tabularx}
 \end{table}
 
@@ -283,7 +290,8 @@ in \path{agent_client/src/}, the deterministic policy engine in
 \path{policy_engine/}, and the on-chain validator in
 \path{contracts/src/SwapGuard.sol}. Benchmarking is orchestrated by a smoke
 harness (\path{harness/runner.py}) that replays fixed test suites against
-configurable defense profiles.
+configurable defense profiles. The full source code is publicly available at
+\url{https://github.com/horserosemilkshake/CS6290-Group-8-Project}.
 
 \subsection{L1 Guardrails}
 
