@@ -185,7 +185,7 @@ The system processes swap requests through three sequential control layers:
 \begin{enumerate}
     \item L1 (Input/Output Guardrails): prompt-injection filtering, unsafe instruction rejection, and response validation.
     \item L2 (Deterministic Policy Engine): rule-based checks on token/router allowlists, slippage, transaction value cap, approval patterns, transaction structure, and chain scope.
-    \item L3 (Optional On-Chain Validator): pre-flight contract validation (SwapGuard) via eth\_call for selected hard constraints.
+    \item L3 (Optional On-Chain Validator): pre-flight contract validation (\texttt{Swap\allowbreak Guard}) via \texttt{eth\_call} for selected hard constraints.
 \end{enumerate}
 
 \subsubsection{Trust and Signer Boundary}
@@ -271,16 +271,16 @@ and the evaluation harness.
 
 The system is implemented in Python with a FastAPI backend, a Telegram Bot
 frontend, and a Foundry-based Solidity contract layer. The agent core resides
-in \texttt{agent\_client/src/}, the deterministic policy engine in
-\texttt{policy\_engine/}, and the on-chain validator in
-\texttt{contracts/src/SwapGuard.sol}. Benchmarking is orchestrated by a smoke
-harness (\texttt{harness/runner.py}) that replays fixed test suites against
+in \path{agent_client/src/}, the deterministic policy engine in
+\path{policy_engine/}, and the on-chain validator in
+\path{contracts/src/SwapGuard.sol}. Benchmarking is orchestrated by a smoke
+harness (\path{harness/runner.py}) that replays fixed test suites against
 configurable defense profiles.
 
 \subsection{L1 Guardrails}
 
-L1 is split into an \texttt{InputGuardrail} and an
-\texttt{OutputGuardrail} (\texttt{agent\_client/src/agents/l1\_agent.py}).
+L1 is split into an \texttt{Input\allowbreak Guardrail} and an
+\texttt{Output\allowbreak Guardrail} (\path{agent_client/src/agents/l1_agent.py}).
 The input guard maintains fourteen regex-based blocked patterns (e.g.,
 \textit{``ignore all instructions,''} \textit{``system prompt,''}
 \textit{``bypass guardrail''}) and three encoded-content patterns (base64,
@@ -294,8 +294,8 @@ leaks such as transaction hashes.
 \subsection{L2 Deterministic Policy Engine}
 
 L2 is implemented as a pure-Python rule engine with zero LLM dependencies
-(\texttt{policy\_engine/engine.py}). It evaluates eleven deterministic rules
-against every \texttt{SwapIntent} and \texttt{QuoteResponse}:
+(\path{policy_engine/engine.py}). It evaluates eleven deterministic rules
+against every \texttt{Swap\allowbreak Intent} and \texttt{Quote\allowbreak Response}:
 
 \begin{itemize}
     \item R-01 Token allowlist
@@ -317,9 +317,9 @@ regardless of what the LLM or any tool suggests.
 
 \subsection{L3 On-Chain Validator}
 
-L3 consists of the \texttt{SwapGuard} Solidity contract
-(\texttt{contracts/src/SwapGuard.sol}) and a zero-dependency Python validator
-(\texttt{policy\_engine/l3\_validator.py}). The contract mirrors four hard
+L3 consists of the \texttt{Swap\allowbreak Guard} Solidity contract
+(\path{contracts/src/SwapGuard.sol}) and a zero-dependency Python validator
+(\path{policy_engine/l3_validator.py}). The contract mirrors four hard
 constraints (R-01, R-02, R-03, R-04) and exposes a \texttt{validateSwap()}
 method. The Python side constructs the \texttt{eth\_call} payload using a
 pure-stdlib Keccak-256 implementation, avoiding any external Web3 library
@@ -336,7 +336,7 @@ contribution of each defense layer while preserving reproducibility.
 
 We evaluate prompt-driven and tool-mediated attacks that target agent behavior
 before any on-chain submission. The fixed benchmark
-(\texttt{final\_attack\_dataset\_v2}) comprises 125 cases: 100 adversarial
+(\path{final_attack_dataset_v2}) comprises 125 cases: 100 adversarial
 cases evenly distributed across four attack vectors and 25 benign swap
 requests to measure false positives. The four attack vectors are:
 
@@ -394,7 +394,7 @@ and a SHA-256 checksum of the test suite to ensure reproducibility.
 
 \subsection{Overall Results}
 
-The final evaluation dataset (\texttt{final\_attack\_dataset\_v2}) contains 125
+The final evaluation dataset (\path{final_attack_dataset_v2}) contains 125
 cases: 100 adversarial cases evenly distributed across four attack vectors and
 25 benign cases. Table~\ref{tab:main-results} reports the final results, and
 Figure~\ref{fig_asr} visualizes the ASR reduction across configurations.
@@ -483,7 +483,7 @@ LLM output---the policy engine evaluates every plan independently, so even a
 complete jailbreak of the LLM cannot bypass hard parameter constraints.
 
 \subsubsection{L3 Contribution}
-L3 mirrors key L2 checks in the immutable \texttt{SwapGuard} contract and runs
+L3 mirrors key L2 checks in the immutable \texttt{Swap\allowbreak Guard} contract and runs
 them through a pre-flight \texttt{eth\_call}. Because L2 already achieves 0\%
 ASR on the benchmark, L3 does not further reduce the reported attack rate.
 However, its value extends beyond ASR. L3 provides defense-in-depth against
@@ -548,7 +548,7 @@ which introduces an additional operational attack surface.
 
 \textbf{L3 deployment assumptions.} L3 was evaluated against a local Anvil node.
 Mainnet RPC latency, gas costs for contract updates, and the operational
-complexity of deploying and maintaining the \texttt{SwapGuard} contract are not
+complexity of deploying and maintaining the \texttt{Swap\allowbreak Guard} contract are not
 quantified here.
 
 \textbf{Binary success metric.} ASR measures whether an unsafe plan is allowed,
