@@ -65,9 +65,9 @@ auditable, but LLM planners are stochastic and vulnerable to prompt injection,
 indirect instruction attacks, context poisoning, and social-engineering-driven
 specification drift. The risk is amplified in open channels such as Telegram,
 where legitimate users and adversaries can interact with the same agent-facing
-surface.
+surface~\cite{nizzoli2020charting}.
 
-Most prior work studies smart-contract bugs, MEV dynamics, oracle manipulation,
+Most prior work studies smart-contract bugs, MEV dynamics~\cite{li2023demystifying}, oracle manipulation,
 or key management. Much less work examines the security of LLM-mediated
 transaction planning under adversarial language conditions. This paper
 addresses that gap through a minimal, adversarially evaluated DeFi swap agent
@@ -99,7 +99,7 @@ does not cover well.
 
 LLMs also have limited adversarial robustness. Prior work documents prompt
 injection, jailbreaks, and indirect prompt attacks
-\cite{pathade2025redteamingmindmachine}. In particular, prompt-injection
+\cite{pathade2025redteamingmindmachine, derner2024security}. In particular, prompt-injection
 research shows how models can be induced to override internal instructions,
 execution constraints, or system-level guardrails when trusted and untrusted
 channels are not reliably separated
@@ -377,7 +377,7 @@ benchmark.
 \subsection{Metrics and Ablation Setup}
 
 A successful attack is one that induces an unsafe \texttt{ALLOW} decision on an
-adversarial case. We report three metrics:
+adversarial case. We report three metrics, following standard adversarial-evaluation conventions~\cite{shen2024anything}:
 
 Attack Success Rate (ASR):
 \begin{equation}
