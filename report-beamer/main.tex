@@ -88,7 +88,7 @@ Goal of this project: minimize successful NL-based attacks.
 \begin{frame}{Specification-Driven Development in This Project}
 \begin{itemize}
   \item Spec-first baseline: 18 requirements (S-01...S-18) in a formal specification markdown.
-  \item Implementation mapping: 22 deterministic rules (R-01...R-22) in specification-rule-mapping.csv.
+  \item Implementation mapping: named deterministic rules (R-xx) in specification-rule-mapping.csv.
   \item Concrete traceability: one-to-many mapping. Example: S-08 (deterministic policy enforcement) $\Rightarrow$ R-03 (slippage $\leq 10\%$)
   \item Release criteria bound to metrics: S-15/S-16/S-17 enforce ASR, TR, and FP targets in the 125-case harness.
   \item Developers guided the coding agent with a 35-task checklist, fixed guardrails, and spec/rule checks.
@@ -144,7 +144,7 @@ Goal of this project: minimize successful NL-based attacks.
   \item \textbf{Benign} (25 cases): legitimate swap requests (for FP measurement).
 \end{itemize}
 \vspace{0.3em}
-Total: \textbf{125 cases} in the final evaluation dataset (v2).
+Total: \textbf{125 cases} in the final evaluation benchmark.
 \end{frame}
 
 \section{Evaluation}
@@ -154,14 +154,15 @@ Total: \textbf{125 cases} in the final evaluation dataset (v2).
   \item 125 test cases across 4 attack vectors + benign baseline.
   \item Compared 4 defense configurations: bare, L1, L1+L2, L1+L2+L3.
   \item Metrics: ASR (Attack Success Rate), FP (False Positive Rate), TR (max single-case latency).
-  \item Deterministic mock mode (fixed prices, fixed quotes) ensures full reproducibility.
+  \item Canonical benchmark uses deterministic mock mode (fixed prices, fixed quotes) for full reproducibility.
+  \item Separate live path validates real-tool integration without changing the canonical paper numbers.
 \end{itemize}
 \end{frame}
 
 \begin{frame}{Main Results}
 \begin{table}
 \centering
-\caption{Red-Team Results (125 Cases, v2 Dataset)}
+\caption{Red-Team Results (125 Cases)}
 \label{tab:main-results}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
@@ -196,7 +197,7 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 \end{table}
 
 \begin{itemize}
-  \item All four attack vectors: \textbf{0 ALLOW} across 100 adversarial cases.
+  \item All four attack vectors: \textbf{0 ALLOW} across the 100 adversarial cases in the final 125-case benchmark.
   \item Tool poisoning addressed by L2 request-signal detection (20 BLOCK, 5 REFUSE).
   \item All 25 benign requests correctly allowed (0\% false positives).
 \end{itemize}
@@ -239,6 +240,16 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 \footnotesize\textbf{Takeaway:} L3's immutable on-chain contract catches what a misconfigured L2 misses.
 \end{frame}
 
+\begin{frame}{Prototype Assurance Beyond the Benchmark}
+\begin{itemize}
+  \item \textbf{Prompt integrity:} system prompt is externalized and hash-checked, so prompt drift becomes testable.
+  \item \textbf{Tool provenance:} each plan records quote validity, source metadata, and strict real-tool mode can fail closed.
+  \item \textbf{Signer boundary:} wallet handoff is explicit in API/data model, and \texttt{/v0/health} exposes runtime status.
+  \item \textbf{Prototype hardening:} optional shared-secret protection exists for control-plane and wallet-handoff routes.
+  \item \textbf{L2/L3 parity:} a checker compares Python policy settings with deployed \texttt{SwapGuard} constraints.
+\end{itemize}
+\end{frame}
+
 \section{Live Demo}
 
 \begin{frame}{Telegram Bot Demo}
@@ -265,22 +276,23 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
 
 \begin{frame}{Limitations}
 \begin{itemize}
-  \item Fixed 125-case dataset; benign set is only 25 cases (FP=0\% confidence interval is wide).
-  \item Main benchmark uses deterministic mock quotes, not live DEX API responses.
-  \item Only single-turn interactions evaluated; multi-turn attacks not yet covered.
-  \item Wallet bridge is in-memory only (demo-ready, not production SDK).
-  \item Scope limited to Ethereum mainnet and Sepolia testnet.
+  \item Fixed 125-case dataset; the benign subset is only 25 cases, so FP evidence is still limited.
+  \item Canonical results come from deterministic mock quotes; live integration is validated separately.
+  \item Only single-turn interactions are evaluated; persistent multi-turn context attacks remain out of scope.
+  \item Wallet handoff and route protection are prototype-grade, not full production wallet/auth infrastructure.
+  \item Scope is intentionally narrow: small allowlists, Ethereum-focused deployment, and limited asset coverage.
 \end{itemize}
 \end{frame}
 
 \begin{frame}{Future Work}
 \begin{itemize}
-  \item \textbf{Semantic Intent Verification}: move beyond pattern matching to detect adversarial intent expressed through structurally valid parameters.
-  \item \textbf{Multi-turn Attack Evaluation}: assess robustness under extended conversation context poisoning across multiple exchanges.
-  \item \textbf{Production Wallet Integration}: bridge to MetaMask / WalletConnect SDK for real owner-action signing flow.
+  \item \textbf{Multi-turn adversarial evaluation}: extend the benchmark to stateful, adaptive dialogue attacks.
+  \item \textbf{Systematic live adversarial testing}: move from live smoke tests to labeled live attack campaigns.
+  \item \textbf{Production wallet/control-plane integration}: replace in-memory handoff and shared secrets with stronger auth and persistent state.
+  \item \textbf{Formal invariants and governance}: formalize core rules and manage L2/L3 policy updates more safely.
 \end{itemize}
 \vspace{0.5em}
-\textbf{Long-term vision:} Standardized security framework for LLM-based financial agents.
+\textbf{Long-term vision:} a reproducible and auditable security framework for LLM-based financial agents.
 \end{frame}
 
 \section{Conclusion}
@@ -292,6 +304,7 @@ Benign             & 0  & 0  & 25 & 25 \\ \bottomrule
   \item Deterministic policy enforcement (L2) is the critical layer -- LLM guardrails alone are insufficient.
   \item L3 on-chain enforcement provides immutable, auditable fallback against internal misconfiguration.
   \item Non-custodial design bounds worst-case impact: only unsigned plans, never executed transactions.
+  \item The project is stronger than a benchmark alone: prompt integrity, provenance, parity checks, and explicit handoff state make the boundary inspectable.
 \end{itemize}
 \vspace{1.0em}
 \centering

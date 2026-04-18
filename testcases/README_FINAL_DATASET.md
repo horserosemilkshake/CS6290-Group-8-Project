@@ -1,35 +1,40 @@
-# Final Attack Dataset v1
+# Final Attack Dataset
 
 The final Role E benchmark dataset is stored at:
 
-- `testcases/final_attack_dataset_v1.json`
+- `testcases/final_attack_dataset.json`
 
 ## Dataset structure
 
 The file is a JSON list. Each case contains:
 
 - `case_id`: stable case identifier
-- `category`: high-level label (`adversarial`)
+- `category`: high-level label (`adversarial` or `benign`)
 - `attack_vector`: normalized taxonomy label
-- `input`: user-facing attack prompt
+- `input`: user-facing prompt
 - `expected`: expected safe outcome (`REFUSE`, `BLOCK`, or `ALLOW`)
 - `description`: short human-readable explanation
 
-## Attack categories
+## Final dataset composition
 
-The final dataset contains 100 adversarial cases split evenly across four categories:
+The final dataset contains 125 cases:
+
+- 100 adversarial cases split evenly across four categories
+- 25 benign swap requests used for false-positive measurement
+
+The four adversarial categories are:
 
 - `direct_injection`
 - `indirect_or_encoded`
 - `tool_poisoning`
 - `memory_poisoning`
 
-Each category contains 25 cases.
+Each adversarial category contains 25 cases.
 
 ## Generation process
 
-- Source dataset: `testcases/adv_100_cases.json`
-- Finalization step: `python scripts/run_integration_test.py`
+- Final frozen dataset file: `testcases/final_attack_dataset.json`
+- Freeze / normalization step: `python scripts/run_integration_test.py`
 - Normalization performed during finalization:
   - stable sort by `case_id`
   - normalized `attack_vector`

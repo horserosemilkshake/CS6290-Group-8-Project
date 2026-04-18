@@ -42,7 +42,7 @@ verified normalization and policy path.
 
 ## Current Canonical Results
 
-Latest checked-in `v2` comparison artifact on 125 cases:
+Latest checked-in comparison artifact on the final 125-case dataset:
 
 | Config | ASR | FP | TR (max) |
 | --- | ---: | ---: | ---: |
@@ -95,7 +95,7 @@ python -m pytest tests -v
 ## Reproducibility Pipeline
 
 The final benchmark dataset is fixed at
-`testcases/final_attack_dataset_v2.json`. For final reporting, prefer freezing
+`testcases/final_attack_dataset.json`. For final reporting, prefer freezing
 the dataset and rerunning the pipeline instead of mutating the benchmark cases
 to chase better metrics.
 
@@ -126,6 +126,16 @@ This regenerates:
 - `artifacts/final_results/`
 - `report-latex/figures/`
 - `docs/threat-model/final_threat_model.md`
+
+Optional hardening for prototype control-plane routes:
+
+```powershell
+$env:CONTROL_PLANE_TOKEN = "change-me"
+$env:WALLET_HANDOFF_TOKEN = "change-me-too"
+```
+
+When these are set, `/v0/defense-config` requires `X-Control-Token` and
+`/v0/wallet/handoffs/*` requires `X-Wallet-Handoff-Token`.
 
 ## Presentation Paths
 
@@ -183,10 +193,23 @@ python scripts/run_real_tools_benchmark.py --config l1l2 --repeat 2
 
 This writes a small live benchmark artifact under `artifacts/real_tools_benchmark/`. It is useful for integration validation, but it is not the canonical reproducible experiment path.
 
+## L2/L3 Parity Check
+
+Use this to compare the current Python L2 policy configuration against a
+deployed `SwapGuard` contract:
+
+```powershell
+$env:SWAP_GUARD_ADDRESS = "0x..."
+python scripts/check_policy_parity.py --strict
+```
+
+This writes `artifacts/final_results/policy_parity_report.json`.
+
 ## Demo Tips
 
 - `GET /v0/health` now reports `defense_config` and tool runtime status.
 - `GET /v0/health` also reports wallet-bridge runtime state for signer-boundary demos.
+- `GET /v0/health` now also reports whether optional control-plane route tokens are enabled.
 - Real-tool responses now carry `tool_audit` metadata in `tx_plan`, including source, endpoint, latency, and fallback reason.
 - `TxPlan` now includes `slippage_bounds`, `quote_validity`, and `wallet_handoff`, so demos can show quote freshness and explicit owner-action pause.
 - For a stable presentation, keep the main benchmark on `REAL_TOOLS=false` and use `scripts/run_real_tools_smoke.py` as the live external-integration check.
@@ -196,10 +219,11 @@ This writes a small live benchmark artifact under `artifacts/real_tools_benchmar
 
 | Path | Purpose |
 | --- | --- |
-| `testcases/final_attack_dataset_v2.json` | Final 125-case evaluation dataset |
+| `testcases/final_attack_dataset.json` | Frozen final 125-case benchmark dataset |
 | `testcases/real_tools_smoke_cases.json` | Small benign suite for real API smoke checks |
 | `scripts/run_integration_test.py` | Main reproducibility pipeline |
 | `scripts/run_real_tools_smoke.py` | Real CoinGecko + 1inch smoke test |
 | `scripts/run_real_tools_benchmark.py` | Guarded live benchmark for real-tool integration |
+| `scripts/check_policy_parity.py` | Compare deployed `SwapGuard` settings with Python L2 config |
 | `report-latex/CS6290-project-template.tex` | Report source |
 | `docs/specification/` | Requirements and traceability source documents |

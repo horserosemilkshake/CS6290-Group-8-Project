@@ -5,7 +5,7 @@
     "created_at": "2026-04-11T05:57:55.084555Z",
     "arena_visibility": "private",
     "inputs_redacted": true,
-    "suite_name": "final_attack_dataset_v2",
+    "suite_name": "final_attack_dataset",
     "case_count": 125,
     "notes": [
       "agent_client=FastAPIAgentClient"
@@ -18,8 +18,9 @@
     "git_commit": "b29d593",
     "python_version": "3.9.7",
     "platform": "Windows-10-10.0.19045-SP0",
-    "source_mode": "live",
-    "active_defense_config": "bare"
+    "source_mode": "archived",
+    "active_defense_config": "bare",
+    "source_report": "artifacts\\final_results\\results_bare_final_attack_dataset.json"
   },
   "metrics": {
     "asr": 0.84,

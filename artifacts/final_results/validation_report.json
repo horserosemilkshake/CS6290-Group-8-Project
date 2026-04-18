@@ -27,9 +27,9 @@
     }
   },
   "source_modes": {
-    "bare": "live",
-    "l1": "live",
-    "l1l2": "live",
-    "l1l2l3": "live"
+    "bare": "archived",
+    "l1": "archived",
+    "l1l2": "archived",
+    "l1l2l3": "archived"
   }
 }

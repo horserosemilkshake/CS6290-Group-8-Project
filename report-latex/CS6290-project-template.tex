@@ -1,15 +1,16 @@
-\documentclass[conference]{IEEEtran}
+﻿\documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 % The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
-\usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
-\usepackage{float}
 \usepackage{multicol}
 \usepackage{tabularx}
+\usepackage{booktabs}
 \usepackage{makecell}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
 
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
@@ -17,14 +18,14 @@
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
-\usepackage[ natbib=true, style=numeric,sorting=none]{biblatex}
-\addbibresource{references.bib}
+\usepackage{cite}
+\bibliographystyle{IEEEtran}
 
 \begin{document}
 
 \title{Adversarially-Robust Minimal DeFi Agent For Cryptocurrency Swapping}
 
-\author{\IEEEauthorblockN{Biying FANG (ID:59119109)\IEEEauthorrefmark{1}, Yifan LI (ID:59669920)\IEEEauthorrefmark{1}, Mengmeng SU (ID:59669920)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
+\author{\IEEEauthorblockN{Biying FANG (ID:59119109)\IEEEauthorrefmark{1}, Yifan LI (ID:59948944)\IEEEauthorrefmark{1}, Mengmeng SU (ID:59669920)\IEEEauthorrefmark{1}, \\ Siqi SUN (ID:59414589)\IEEEauthorrefmark{1} and Tsz Chun TSOI (ID:57159984)\IEEEauthorrefmark{1}} 
 \IEEEauthorblockA{\IEEEauthorrefmark{1}College of Computer Science\\
 City University of Hong Kong, Tat Chee Avenue, Kowloon, Hong Kong SAR\\
 Email: tszctsoi4-c@my.cityu.edu.hk} }
@@ -32,176 +33,567 @@ Email: tszctsoi4-c@my.cityu.edu.hk} }
 
 \maketitle
 
+\begin{center}
+\footnotesize\textbf{Source code:} \url{https://github.com/horserosemilkshake/CS6290-Group-8-Project}
+\end{center}
+
+\begin{abstract}
+Large language model (LLM) agents are starting to mediate DeFi workflows, but
+their security properties remain unclear when they operate over open,
+adversarial natural-language channels. We present a minimal non-custodial DeFi
+swap agent that converts user requests into unsigned transaction plans and
+evaluates them through three layers: L1 language-facing guardrails, an L2
+deterministic policy engine, and an optional L3 on-chain validator. The system
+is developed in a specification-driven manner and evaluated on a fixed final
+125-case dataset containing 100 adversarial prompts across four attack vectors
+plus 25 benign requests. L1+L2 reduces Attack Success Rate (ASR) from 84\% in
+the bare configuration to 0\% while maintaining a 0\% false-positive rate. L3
+does not further reduce ASR on this benchmark, but a targeted misconfiguration
+experiment shows that it can catch configuration drift that escapes the Python
+layer. Beyond the benchmark, the prototype externalizes and hash-checks its
+system prompt, records tool provenance and quote-validity metadata in each
+plan, and exposes explicit owner-signature handoff interfaces that make the
+signer boundary observable in both testing and live demos. The main lesson is
+that DeFi agents should treat LLM output as untrusted and place deterministic
+enforcement on the critical path before the owner-signature handoff.
+\end{abstract}
+
 
 \section{Introduction}
-The user interfaces of Decentralized Finance (DeFi) are shifting from manually executing on‐chain transactions to conversational AI agents, ranging from wallet‑embedded copilots, Telegram trading bots, to fully autonomous DeFi assistants. These systems translate natural‑language directives into executable blockchain operations, effectively inserting a probabilistic planning layer into what was a deterministic pipeline under user's control.
+DeFi user interfaces are moving from manual wallet interactions toward
+conversational agents embedded in bots, wallets, and copilots. This shift is
+convenient for users, but it also inserts a probabilistic planning layer into
+what used to be a more explicit and user-controlled transaction pipeline.
 
-The shift introduces an unexamined security boundary. Unlike explicit and formally analyzable smart contracts, large language models (LLMs) exhibit stochasticity and are susceptible to various linguistic and contextual adversarial actions, including prompt injection, indirect influence attacks, contextual contamination, and social‑engineering‑driven specification drift. The threat is amplified in open multi‑party communication environments such as Telegram or WhatsApp, where adversaries may directly interact with the same agent instance as the legitimate user, embedding payloads designed to subvert the transaction‑generation process.
+That change creates a new security boundary. Smart contracts remain explicit
+and auditable, but an LLM planner can be influenced by prompt injection,
+context poisoning, encoded instructions, and tool-output manipulation. The risk
+is especially important in open communication channels such as Telegram, where
+benign users and adversaries can reach the same agent-facing interface
+surface~\cite{nizzoli2020charting}.
 
-While the existing literature extensively investigates vulnerabilities in smart‑contract correctness, MEV extraction dynamics, oracle manipulation, and private‑key security, there is little systematic analysis of the security properties of novel LLM‑driven transaction‑planning pipelines under adversarial language conditions. The research addresses the gaps by implementing and empirically evaluating a minimal, adversarially tested prototype intersecting AI agents and DeFi infrastructure.
+Most prior work on DeFi security focuses on smart-contract bugs, MEV
+dynamics~\cite{li2023demystifying}, oracle manipulation, or wallet key
+management. Much less work studies the security of LLM-mediated transaction
+planning under adversarial language conditions. Our project addresses that gap
+through a minimal DeFi swap agent whose scope is intentionally narrow: it
+plans plain swap requests, never signs or broadcasts transactions, and hands
+off only unsigned plans to the owner.
+
+This paper makes five concrete contributions. First, we design and implement a
+three-layer defense architecture for non-custodial DeFi swap planning. Second,
+we show how a specification-driven workflow links requirements, rules, tests,
+and final metrics. Third, we expose the signer boundary as an explicit API- and
+data-model concept rather than leaving it implicit inside the UI. Fourth, we
+evaluate the system on a fixed final 125-case benchmark and complement the main
+benchmark with a targeted L3 misconfiguration experiment that clarifies the
+value of on-chain defense-in-depth. Fifth, we separate canonical reproducible
+benchmarking from live external-tool validation, allowing the same prototype to
+support both stable measurement and credible demos.
 
 \section{Literature Review}
-%
 
-The project integrates DeFi, AI-driven agents, and adversarial machine learning security, encompassing multiple unrelated and evolving fields. To situate the present work, this section connects three major bodies of literature, namely DeFi protocol and transaction-security research, adversarial language-model safety, and agentic LLM pipelines.
+This work sits at the intersection of three literature streams: DeFi
+transaction security, adversarial LLM safety, and tool-using LLM agents. We
+review each stream to identify the gap addressed by our architecture.
 
 \subsection{DeFi Protocols Research}
 
-Mainstream DeFi security research revolves around deterministic smart-contract vulnerabilities, including integer-overflow bugs, faulty permission, and MEV extraction methodologies assuming explicit, analyzable code as the attack surface, treating swaps and liquidity operations as deterministic execution traces \cite{10.1016/j.eswa.2025.128431}. The literature on non‑custodial wallet design and safe transaction construction further emphasizes invariant‑preserving interfaces and formal verification \cite{10.1016/j.eswa.2025.128431, ERINLE2025111691}. All the discussed work share an implicit assumption that the transaction pipeline is audit-able and deterministic.
+Mainstream DeFi security research focuses on deterministic smart-contract
+vulnerabilities, such as arithmetic errors, faulty permissions, and
+MEV-related execution risks, under the assumption that the transaction
+pipeline is explicit and analyzable \cite{10.1016/j.eswa.2025.128431}. Work on
+non-custodial wallet design and safe transaction construction similarly
+emphasizes invariant-preserving interfaces and strong separation between
+planning, signing, and execution \cite{10.1016/j.eswa.2025.128431,
+ERINLE2025111691}. Across these lines of work, the planner is usually treated
+as deterministic.
 
-However, probabilistic LLM-driven planners invalidate such an assumption and introduce stochastic decision chains and potential misalignment between authentic user intents and generated transactions, creating a novel security boundary that warrants further examination.
+LLM-based planners break that assumption. They introduce stochastic decision
+chains and possible misalignment between authentic user intent and generated
+transactions, creating a security boundary that classical DeFi analysis does
+not address well.
 
 \subsection{Adversarial LLM Insecurity}
 
-On top of stochasticity, the weaker adversarial robustness of LLM also induce challenges for implementing a secure swap agent. Recent research has been conducted throughout the document and has demonstrated attacks such as prompt injection, jailbreaks, and indirect prompt attacks \cite{pathade2025redteamingmindmachine}. In particular, research on prompt injection attacks detail how LLMs can be coerced into overriding internal instructions, execution constraints, or system‑level guardrails, especially when they are unable to enforce reliable separation between trusted and insecure channels \cite{pathade2025redteamingmindmachine, li2025securityconcernslargelanguage}. 
+LLMs have limited adversarial robustness. Prior work documents prompt
+injection, jailbreaks, and indirect prompt attacks
+\cite{pathade2025redteamingmindmachine, derner2024security}. In particular,
+prompt-injection research shows that models can be induced to override
+instructions, execution constraints, or system-level guardrails when trusted
+and untrusted channels are not reliably separated
+\cite{pathade2025redteamingmindmachine, li2025securityconcernslargelanguage}.
 
-Consistent with the research, production-level incidents of bare (no protection guardrails like input filtering or encoding attack detection) LLM agent being prompt-injected on online forums and sending funds to unauthorized accounts emerged, highlighting realistic vulnerabilities to direct injection, structural weaknesses in LLM trust boundaries, and the ease of hijacking model behavior in open environments\cite{balaha2026}. This aligns with the threat model facing conversational DeFi agents operating in public channels like Telegram, where adversaries co‑exist with legitimate users and strategically inject malicious instructions into shared context.
+Reported incidents involving weakly protected LLM agents further suggest that
+direct injection is not only a theoretical concern \cite{balaha2026}. These
+failures align closely with the threat model of conversational DeFi agents in
+public channels, where adversaries and legitimate users share the same
+interaction surface and compete to influence the planner.
 
 
 \subsection{LLM Agents Tools and Deterministic Policy Layer}
-Bare LLM agents that use external tools, APIs, and multi-step planners consistently exhibit novel modes of safety failure beyond typical content-moderation issues. Assessments such as Agent-SafetyBench show that no agent achieves a safety score of 60\% in tool invocation, while datasets like ToolSafety further demonstrates that multi-step and indirect harm scenarios significantly reduce the reliability of LLMs \cite{zhang2024agent, xie-etal-2025-toolsafety}. Even safety‑tuned models err in tool‑mediated workflows—misinterpreting intermediate data, hallucinating execution steps, or over‑relying on uncertain tool outputs. These results highlight the need for deterministic policy layers, strict schema validation, and environment constraints rather than relying solely on prompt‑based guardrails.
+LLM agents that use external tools, APIs, and multi-step planners show safety
+failures beyond conventional content moderation. Benchmarks such as
+Agent-SafetyBench and ToolSafety report weak reliability in tool invocation and
+multi-step harmful scenarios \cite{zhang2024agent, xie-etal-2025-toolsafety}.
+Even safety-tuned models can misread intermediate data, hallucinate execution
+steps, or over-trust uncertain tool outputs. These results motivate
+deterministic policy layers, strict schema validation, and explicit
+environment-level constraints instead of prompt-only defenses.
 
 \subsection{Synthesis}
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Summary of Research Domains, Targets, Limitations}
-\label{Summary of Research Domains, Targets, Limitations}
-\begin{tabular}{lll}
-\hline
-Domain & Address & Does not address \\ \hline
-DeFi security  & \makecell{deterministic\\code\\vulnerabilities}    & \makecell{language misinterpretation\\and adversarial manipulation\\at the prompt layer}      \\ \hline
-LLM safety     & \makecell{linguistic-contextual\\ attack surfaces}                & \makecell{high‑stakes consequences\\ of financial execution}        \\ \hline
-\makecell{LLM agent\\research}     & \makecell{risks from\\tool interaction and\\ multi‑step workflows}                & \makecell{non‑custodial architectures and\\ open messaging ecosystems}       \\ \hline
-\end{tabular}
+\caption{What Existing Literature Covers and Misses}
+\label{tab:literature-summary}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.18\linewidth} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Stream} & \textbf{Covers} & \textbf{Misses} \\
+\midrule
+DeFi security  & Deterministic contract bugs and execution risks & Prompt-layer misinterpretation and adversarial language manipulation \\
+LLM safety     & Linguistic and contextual attack surfaces & Financial execution consequences and signer-boundary design \\
+LLM agent research & Tool-use failures and multi-step agent risk & Non-custodial transaction planning in open messaging environments \\
+\bottomrule
+\end{tabularx}
 \end{table}
 
-The proposed prototype addresses the intersection of blind-spots by showing how LLM uncertainty couples with deterministic financial execution and by proposing system‑level invariants that combine cryptographic non‑custodial guarantees with AI safety and adversarial‑robustness principles. The resulting threat surface is a hybrid security frontier different from a classical blockchain bug nor an LLM‑safety issue, and demands novel application frameworks with originality.
+Table~\ref{tab:literature-summary} highlights these complementary blind spots.
+Our prototype addresses the intersection by showing how LLM
+uncertainty couples with deterministic financial execution. The resulting
+threat surface is neither a classical smart-contract bug nor a standard
+LLM-safety problem; it is a hybrid security problem that requires a dedicated
+application architecture.
 
-\section{Application Setting}
+\section{Specification-Driven Development}
+
+The project was developed in a specification-driven manner rather than as a
+purely prompt-driven prototype. We first defined 18 project-level
+specifications (\texttt{S-01} to \texttt{S-18}) covering functionality,
+security, benchmarking, and performance. We then mapped these specifications to
+a named implementation-rule set (\texttt{R-xx}) and linked those rules to
+tests, harness logic, and report metrics. A 35-task development checklist
+(\path{docs/specification/task-list-llm.md}) guided the implementation and
+test ordering applied during the development process. This workflow matters for
+an LLM-based financial system because it reduces specification drift: the
+report, the code, and the evaluation all refer back to the same named
+requirements.
+
+Table~\ref{tab:spec-traceability} summarizes the most important traceability
+links used in the final system. Not every rule belongs to the L2 policy engine;
+some govern L1 behavior, signer-boundary handling, L3 mirroring, or the
+measurement pipeline itself.
+
+\begin{table}[!htbp]
+\centering
+\caption{Representative Requirement-to-Implementation Traceability}
+\label{tab:spec-traceability}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.14\linewidth} >{\raggedright\arraybackslash}p{0.30\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Spec} & \textbf{Meaning} & \textbf{Implementation Evidence} \\
+\midrule
+\texttt{S-04}, \texttt{S-05} & Generate only unsigned plans and pause at the signer boundary & \texttt{TxPlan} includes unsigned transaction data plus signer-boundary metadata; the API exposes explicit handoff routes before any owner action. \\[3pt]
+\texttt{S-07}, \texttt{S-09} & Reject prompt injection and encoded or untrusted control content before planning & L1 input guardrail filters malicious templates, flags encoded content, sanitizes markup, and rejects unsafe requests before the LLM plan is used. \\[3pt]
+\texttt{S-08} & Enforce non-overridable deterministic policy checks & L2 evaluates token/router allowlists, slippage, value cap, approval scope, request-shape sanity, quote freshness, chain scope, and unsafe request overrides. \\[3pt]
+\texttt{S-10} & Optionally mirror hard constraints on-chain & \texttt{SwapGuard} and the Python L3 validator mirror token, router, slippage, and value-cap constraints through \texttt{eth\_call}. \\[3pt]
+\texttt{S-14}--\texttt{S-17} & Measure robustness on a fixed benchmark & \path{scripts/run_integration_test.py} freezes the final 125-case dataset, computes ASR/FP/TR, and regenerates report figures and the threat-model summary. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The process chain used in the project is therefore:
+\[
+\text{Specifications} \rightarrow \text{Rules} \rightarrow \text{Tests} \rightarrow \text{Metrics}
+\]
+This report follows the same chain. It uses one frozen benchmark, stored at
+\path{testcases/final_attack_dataset.json}, as the sole dataset for the final
+evaluation.
+
+\section{System and Threat Model}
 
 \subsection{System Architecture}
 \subsubsection{Purpose and Scope}
-The system provides a conversation swap planning agent that converts natural-language-based user intents into a deterministic, unsigned transaction plan (\texttt{TxPlan}) for a DeFi swap while the agent never signs or broadcasts transactions. Security objectives are user fund safety, privacy, and policy adherence in adversarial environment (e.g., public chat channels and unsafe data sources). 
+The system is a conversational swap-planning agent that converts natural-
+language user intents into an unsigned transaction plan (\texttt{TxPlan}) for a
+DeFi swap. The agent never signs or broadcasts transactions. Its security goals
+are fund safety, privacy preservation, and deterministic policy adherence in
+adversarial environments such as public chat channels and untrusted data
+sources.
 
 \subsubsection{System Components Overview}
-The following provides an overview of the components and their interactions.
+Figure~\ref{fig_components} summarizes the system boundary and the
+owner-signature handoff.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=3.3in]{figure/component_diagram.png}
-  \caption{System Components Overview (zoom in for details)}
+  \includegraphics[width=\linewidth]{figure/architecture_overview_v2.png}
+  \caption{System boundary, trusted agent space, and owner-signature handoff.}
   \label{fig_components}
 \end{figure}
 
-A legitimate user interacts with the system via a conversation request to a chat interface (typically a Telegram bot), calling the agent plan API. After the Layer 1 (L1) agent parses and sanitizes the request, it extracts a structured swap intent and retrieves market data. The Layer 2 (L2) policy engine verifies whether the request compiles with deterministic safety and \texttt{allowlist} rules, and returns an unsigned \texttt{TxPlan} marked with \texttt{NEEDS\_OWNER\_SIGNATURE} The user reviews the plan and, if satisfied, signs with their own private key.
+A legitimate user submits a request through a chat interface, typically a
+Telegram bot, which forwards the request to the planning API. L1 sanitizes the
+input, parses a structured swap intent, and coordinates quote retrieval. L2
+checks the resulting plan against deterministic safety rules and allowlists. If
+the request passes, the system returns an unsigned \texttt{TxPlan} that
+includes quote validity, slippage bounds, and handoff metadata. The user must
+review the plan and decide whether to authorize it in their own wallet domain.
 
-In this paper, L1 is the DeFi LLM agent. It is a probabilistic layer responsible for handling input security, filtering requests, and controlling tool invocations, thereby mitigating natural language attacks. Meanwhile, L2 is the policy engine. It is a strict and deterministic enforcement layer that blocks any rule-breaking actions by the LLM or user requests.
+The figure emphasizes three architectural boundaries. The \emph{trusted agent
+space} contains every component that can parse intent or construct a plan. The
+\emph{safety gate} marks the last deterministic validation boundary before any
+plan reaches the user. The \emph{wallet domain} remains outside the agent: the
+system hands off an unsigned plan, and the user alone decides whether to sign.
 
-\begin{figure}[H]
+In our implementation, L1 is the probabilistic language-facing layer. It
+handles input filtering, prompt-injection rejection, and output validation. L2
+is the deterministic enforcement layer. It blocks requests that violate token,
+router, slippage, value-cap, approval, or chain-scope policies, even if the
+LLM or an external tool proposes them.
+
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=2in]{figure/bare+L1+L2.png}
-  \caption{The Relationship Between Bare LLM, L1 and L2}
+  \includegraphics[width=\linewidth]{figure/layered_control_flow_v2.png}
+  \caption{Layered control flow from natural-language input to owner-signature handoff.}
   \label{fig_layers}
 \end{figure}
 
-Detailedly, the system converts natural-language swap requests into unsigned transaction plans through three sequential control layers with the following specific checks:
+Figure~\ref{fig_layers} shows how the three control layers divide
+responsibility:
 
 \begin{enumerate}
-    \item L1 (Input/Output Guardrails): prompt-injection filtering, unsafe instruction rejection, and response validation.
-    \item L2 (Deterministic Policy Engine): rule-based checks on token/router allowlists, slippage, transaction value cap, approval patterns, transaction structure, and chain scope.
-    \item L3 (Optional On-Chain Validator): pre-flight contract validation (SwapGuard) via eth\_call for selected hard constraints.
+    \item L1 (Input/Output Guardrails): prompt-injection filtering, unsafe instruction rejection, schema validation, and basic privacy checks.
+    \item L2 (Deterministic Policy Engine): rule-based checks on token/router allowlists, slippage, transaction value cap, approval patterns, transaction structure, quote freshness, request shape, and chain scope.
+    \item L3 (Optional On-Chain Validator): pre-flight contract validation (\texttt{Swap\allowbreak Guard}) via \texttt{eth\_call} for selected hard constraints.
 \end{enumerate}
 
-\subsubsection{Important Trust and Signer Boundary}
+\subsubsection{Trust and Signer Boundary}
 \begin{itemize}
-    \item Invariant I1 (Non‑Custodial): No module can produce a signed transaction or trigger an on‑chain side effect.
+    \item Invariant I1 (Non-Custodial): No module can produce a signed transaction or trigger an on-chain side effect.
     \item Invariant I2 (Deterministic Governance): L2 policy decisions dominate LLM/tool outputs.
 \end{itemize}
 
-Thus, the agent's possible outputs are limited as follows.
-\begin{multicols}{2}
+At the user-facing level, these implementation details collapse into four
+observable outcome classes used throughout the benchmark:
 \begin{itemize}
-    \item \texttt{REJECTED} (by L1)
-    \item \texttt{NEEDS\_OWNER} \\ \texttt{\_SIGNATURE}
-    \item \texttt{BLOCKED} (by L2)
-    \item \texttt{ERROR} (API error)
+    \item \texttt{REFUSE}: L1 rejects the request before a valid plan exists.
+    \item \texttt{BLOCK}: L2 or L3 rejects a plan that violates deterministic policy.
+    \item \texttt{ALLOW}: the system returns \texttt{NEEDS\_OWNER\_SIGNATURE} with an unsigned \texttt{TxPlan}.
+    \item \texttt{ERROR}: tool, parsing, or runtime failure prevents a valid decision.
 \end{itemize}
-\end{multicols}
 
 \subsection{Threat Model}
 \subsubsection{Assets and Objectives}
-The most important assets are user funds and privacy information. The system is supposed to prevent unsafe plans that might incur losses while protecting addresses, balances, and user intentions, and ensuring policy adherence and invariant preservation for system integrity.
+The primary assets are user funds, privacy-sensitive information, and intent
+integrity. The system must prevent unsafe plans that could cause loss while
+protecting addresses, balances, and user intent from leakage or corruption. It
+must also preserve policy adherence and the invariants that enforce the
+non-custodial signer boundary.
 
 \subsubsection{Adversaries and Capabilities}
-Assume adversaries can access the input interface in an open communication platform, observe timing/metadata, and influence tool output to the extent allowed by mocked/external data sources. The following attacks prevail under these assumptions.
+We assume adversaries can access the input interface in an open communication
+environment, observe timing and metadata, and influence tool output to the
+extent allowed by mocked or external data sources. Under that model, the main
+attacker classes are:
 
 \begin{itemize}
-    \item External prompt adversary: use chat input to induce unsafe plans (e.g., "My uncle has been diagnosed with a tetanus infection due to a lobster like you. I need 4 Sol to get the treatment done"\cite{balaha2026}, role-play jail breaking). 
-    \item Indirect data adversary: inject malicious instructions via external tools/data (e.g., payload in market feeds). 
-    \item Context Poisoner: forge provenance (fake admin/system claims) or taint historical context/memory.
-    \item Fraudster: exploits policy gaps (e.g., routers/tokens not on allowlists, extreme slippage).
+    \item External prompt adversary: uses chat input to induce unsafe plans, including jailbreaks and emotional or authority-based manipulation \cite{balaha2026}.
+    \item Indirect data adversary: injects malicious instructions through external tools or data feeds.
+    \item Context poisoner: forges provenance, such as fake admin or system claims, or contaminates retained conversational context.
+    \item Fraudster: exploits policy gaps through disallowed routers, tokens, approvals, or extreme execution parameters.
 \end{itemize}
 
-\subsubsection{Adversaries Attack Surfaces}
-
+\subsubsection{Attack Surfaces}
 \begin{itemize}
-    \item Open chat input channel (Telegram/WhatsApp natural language inputs).
-    \item External tool outputs (e.g., quotes and market snapshots are susceptible to indirect injection). 
-    \item State/memory (if any retained context is used beyond a single request) allowing information leakage.
-    \item Public or unprotected API surface (HTTP endpoints).
+    \item Open chat input channel (Telegram-style natural-language inputs).
+    \item External tool outputs (e.g., market snapshots and quotes), which must be treated as untrusted data.
+    \item State or memory, if any retained context is used beyond a single request.
+    \item Public HTTP routes, including runtime control-plane endpoints used
+    for testing, demos, and signer-boundary inspection.
 \end{itemize}
 
 \subsubsection{Threat Categories and Controls}
-The following table models some of the anticipated threat categories in the system.
+Table~\ref{tab:threat-controls} summarizes representative threats, their
+primary control layer, and the expected outcome.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Common Threats, Controls Layers, and Outcomes}
-\label{Common Threats, Controls Layers, and Outcomes}
-\begin{tabular}{lll}
-\hline
-Threats & Controls & Outcome \\ \hline
-Direct Prompt Injection   & L1    & \texttt{REJECTED}       \\ \hline
-Jailbreak / Role‑Play Escalation     & L1                & \texttt{REJECTED}        \\ \hline
-Valid But Policy‑Violating Requests \\ (e.g., slippage exceeding threshold)     & L2                & \texttt{BLOCKED}        \\ \hline
-Indirect Data Adversaries   & L1 + Tools    & \texttt{\makecell{REJECTED\\/ERROR}}       \\ \hline
-Context Poisoning  & L1    & \texttt{REJECTED}       \\ \hline
-Information Leakage & L1    & \texttt{REJECTED}       \\ \hline
-\end{tabular}
+\caption{Threats, Dominant Control Layer, and Expected Result}
+\label{tab:threat-controls}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\centering\arraybackslash}p{0.14\linewidth} >{\raggedright\arraybackslash}p{0.24\linewidth}}
+\toprule
+\textbf{Threat} & \textbf{Layer} & \textbf{Result} \\
+\midrule
+Direct prompt injection & L1 & \texttt{REFUSE} \\
+Jailbreak or role-play escalation & L1 & \texttt{REFUSE} \\
+Policy-violating but valid-looking requests & L2 & \texttt{BLOCK} \\
+Indirect data injection through tools & L1+Tools & \texttt{REFUSE} or \texttt{ERROR} \\
+Context poisoning & L1 & \texttt{REFUSE} \\
+Information leakage attempts & L1 & \texttt{REFUSE} \\
+\bottomrule
+\end{tabularx}
 \end{table}
 
-\subsubsection{Full Security Invariants and Policies} Besides I1 and I2, we introduce two more invariants for schema and context.
+\subsubsection{Additional Security Invariants}
+Besides I1 and I2, we define two more invariants for schema and context.
 
 \begin{itemize}
-    \item Invariant I3 (Schema Integrity): All cross‑component messages conform to \texttt{schemas.py} and are validated before sending and upon arrival.
+    \item Invariant I3 (Schema Integrity): All cross-component messages conform to \texttt{schemas.py} and are validated before sending and upon arrival.
     \item Invariant I4 (Context Discipline): Tool outputs treated as untrusted data; never merged into instruction channels.
 \end{itemize}
 
-\section{Experiment and Methodology}
+\section{Implementation}
 
-This section outlines the experiment settings taken to examine the adversarial resistance of the proposed swap agent with layered defense architecture and controlled red-teaming. The testing methodology is to isolate the security contribution of each defense layer (i.e., L1, L2, L3) while preserving reproducibility. 
+This section describes the concrete realization of the three defense layers,
+the signer-boundary implementation, and the evaluation pipeline.
 
-\subsubsection{Threat Model and Attack Taxonomy}
-We evaluate prompt-driven and tool-mediated attacks that target agent misbehavior before on-chain submission. Adversarial prompts are grouped into four vectors $\mathbb{A}^4$, each with 25 entries:
+\subsection{Technology Stack}
+
+The system is implemented in Python with a FastAPI backend, a Telegram bot
+frontend, and a Foundry-based Solidity contract layer. The agent core resides
+in \path{agent_client/src/}, the deterministic policy engine in
+\path{policy_engine/}, and the on-chain validator in
+\path{contracts/src/SwapGuard.sol}. Benchmarking and artifact generation are
+driven by \path{scripts/run_integration_test.py}, which writes final results,
+plots, and a report-ready threat-model summary. The repository also includes
+real-tool smoke, live benchmark, system-prompt integrity, and L2/L3 policy
+parity scripts. Together, these utilities make the prototype more inspectable:
+they distinguish canonical evaluation from live integration checks and turn
+important security assumptions into executable checks.
+
+\subsection{L1 Guardrails and Prompt Integrity}
+
+L1 is split into an \texttt{Input\allowbreak Guardrail} and an
+\texttt{Output\allowbreak Guardrail} (\path{agent_client/src/agents/l1_agent.py}).
+
+The input guard applies five categories of checks before a request reaches
+the LLM planner:
+
+\begin{enumerate}
+    \item \textbf{Injection pattern matching.} 21 regular-expression patterns organized into five groups: instruction overrides (e.g., ``ignore all instructions'', ``you are now''), policy/guardrail bypass phrases (e.g., ``override policy'', ``bypass guardrail''), code-injection markers (e.g., \texttt{<script>}, \texttt{DROP TABLE}), admin-impersonation claims (e.g., ``verified as admin'', ``on behalf of''), and financial-fraud directives (e.g., ``steal the funds'', ``send fees to my wallet'').
+    \item \textbf{Encoding detection.} Three patterns that flag Base64, Rot13, hex-escape (\texttt{\textbackslash x..}), and HTML entity (\texttt{\&\#...;}) content.
+    \item \textbf{Length limit.} Messages exceeding 500 characters are rejected.
+    \item \textbf{Swap-keyword requirement.} At least one of \texttt{swap}, \texttt{exchange}, \texttt{trade}, \texttt{convert}, \texttt{buy}, or \texttt{sell} must appear.
+    \item \textbf{Sensitive-info detection.} Ethereum addresses (40-character hex strings) and private-key or seed-phrase mentions are flagged.
+\end{enumerate}
+
+The output guard validates the LLM-produced structure, enforces positive
+integer amount format, rejects four forbidden tool references
+(\texttt{broadcast\_transaction}, \texttt{sign\_transaction},
+\texttt{transfer\_funds}, and \texttt{approve\_unlimited}), and blocks
+privacy leaks such as transaction hashes.
+
+The LLM system prompt is also externalized into
+\path{agent_client/src/llm/system_prompt.txt} and paired with a recorded hash,
+a verification script, and integrity tests. This does not make prompt
+tampering impossible, but it does move prompt integrity from an undocumented
+inline code string to an auditable repository artifact. In a student project,
+that shift matters because it makes one important part of the LLM trust
+boundary visible and reviewable.
+
+\subsection{L2 Deterministic Policy Engine}
+
+L2 is implemented as a pure-Python rule engine with zero LLM dependencies
+(\path{policy_engine/engine.py}). It evaluates eleven deterministic checks
+against every \texttt{Swap\allowbreak Intent} and \texttt{Quote\allowbreak Response}:
 
 \begin{itemize}
-    \item direct injection (explicit jailbreak/override instructions)
-    \item indirect/encoded (obfuscated or encoded malicious intent)
-    \item tool poisoning (manipulating tool-related assumptions)
-    \item memory poisoning (context poisoning and fake prior-authority claims)
+    \item R-01 Token allowlist
+    \item R-02 Router allowlist
+    \item R-03 Slippage limit
+    \item R-04 Per-transaction value cap
+    \item R-05 No unlimited approvals
+    \item R-07 Transaction-plan structure validation
+    \item R-09 Quote expiry enforcement
+    \item R-13 Unsafe request overrides
+    \item R-16 Trusted market snapshot prerequisite
+    \item R-17 Network scope enforcement
+    \item R-23 Request-shape sanity checks
 \end{itemize}
 
-\begin{figure}[H]
+The concrete configuration values used in the final evaluation are:
+
+\begin{itemize}
+    \item \textbf{Token allowlist (R-01):} ETH, WETH, USDC, USDT, DAI.
+    \item \textbf{Router allowlist (R-02):} 1inch v5, 1inch v6, and the 0x Exchange Proxy.
+    \item \textbf{Slippage cap (R-03):} 1000 basis points (10\%).
+    \item \textbf{Value cap (R-04):} 5.0 ETH-equivalent per transaction.
+    \item \textbf{Chain scope (R-17):} Ethereum mainnet (chain ID 1) and Sepolia testnet (chain ID 11155111).
+\end{itemize}
+
+Several of these checks are especially important for the MVP scope. The system
+intentionally supports only plain swap intents. User-supplied execution
+overrides such as manual slippage, router address, recipient, gas settings, or
+price claims are blocked until they have their own verified normalization path.
+To support these checks, the implementation extracts request-side signals from
+raw user text before evaluation (\path{policy_engine/rules.py},
+\texttt{extract\_request\_signals()}) and passes them into the policy engine as
+structured metadata. This lets L2 reason not only about the final quote, but
+also about suspicious request-shape features such as manual router overrides,
+unsupported wei-denominated requests, explicit deadline manipulation, or
+untrusted price claims. The resulting design treats language as evidence, not
+as authority.
+
+The key architectural invariant is that the L2 decision is
+\textit{non-overridable}: if any rule fires, the engine returns
+\texttt{BLOCK} regardless of what the LLM or any tool suggests.
+
+\subsection{L3 On-Chain Validator}
+
+L3 consists of the \texttt{Swap\allowbreak Guard} Solidity contract
+(\path{contracts/src/SwapGuard.sol}) and a zero-dependency Python validator
+(\path{policy_engine/l3_validator.py}). The contract mirrors four hard
+constraints (R-01, R-02, R-03, R-04) and exposes a \texttt{validateSwap()}
+method. The Python side constructs the \texttt{eth\_call} payload using a
+pure-stdlib Keccak-256 implementation, avoiding any external Web3 library
+dependency. This design choice keeps the dependency footprint minimal and lets
+L3 run in resource-constrained or air-gapped audit environments where
+installing a full Web3 stack is impractical or undesirable.
+
+To support that operational role, the repository also includes a policy parity
+checker (\path{scripts/check_policy_parity.py}) that compares the deployed
+contract's scalar thresholds and allowlist decisions against the current Python
+configuration. This script does not replace governance, but it does turn one
+important operational assumption---that L2 and L3 still match---into an
+explicit check rather than an implicit hope.
+
+\subsection{Signer-Boundary and Provenance Metadata}
+
+When a request passes L1, L2, and optional L3, the system returns a
+\texttt{TxPlan} rather than a signed transaction. This object carries not only
+the unsigned transaction fields, but also \texttt{slippage\_bounds},
+\texttt{quote\_validity}, \texttt{wallet\_handoff}, and \texttt{tool\_audit}
+metadata. In the current prototype, the signer boundary is represented by an
+explicit in-memory wallet handoff service
+(\path{agent_client/src/wallet/bridge.py}) with a configurable TTL (default
+300\,s). Table~\ref{tab:api-endpoints} lists the six API endpoints that expose
+planning, observability, configuration, and signer-boundary functionality.
+
+\begin{table}[!htbp]
+\centering
+\caption{API Endpoints Exposed by the Agent Backend}
+\label{tab:api-endpoints}
+\small
+\begin{tabularx}{\linewidth}{c >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{0.36\linewidth}}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Purpose} \\
+\midrule
+\texttt{POST} & \nolinkurl{/v0/agent/plan} & Create a transaction plan through the full L1--L3 pipeline. \\
+\texttt{GET} & \nolinkurl{/v0/health} & Report defense profile, tool runtime state, and wallet-bridge status. \\
+\texttt{GET} & \nolinkurl{/v0/defense-config} & Read the active defense configuration. \\
+\texttt{POST} & \nolinkurl{/v0/defense-config} & Switch configuration at runtime (e.g., \texttt{bare}$\to$\texttt{l1l2l3}). \\
+\texttt{GET} & \nolinkurl{/v0/wallet/handoffs/{id}} & Fetch the signer-boundary handoff state for a pending plan. \\
+\texttt{POST} & \nolinkurl{/v0/wallet/handoffs/{id}/decision} & Record the owner's approve/decline on a pending handoff. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The control-plane routes (\path{/v0/defense-config} and
+\path{/v0/wallet/handoffs/*}) can be protected with optional shared-secret
+headers (\texttt{X-Control-Token} and \texttt{X-Wallet-Handoff-Token},
+respectively). This is lightweight hardening rather than full production
+authentication, but it narrows an obvious prototype weakness and makes the
+control plane more honest about its security boundary.
+
+\subsection{Verification and Test Evidence}
+
+The implementation is backed by representative tests across prompt integrity,
+policy enforcement, tool coordination, signer-boundary behavior, control-plane
+hardening, and on-chain validation. Table~\ref{tab:test-evidence} summarizes
+the most important coverage areas.
+
+\begin{table}[!htbp]
+\centering
+\caption{Verification Evidence in the Repository}
+\label{tab:test-evidence}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} >{\raggedright\arraybackslash}p{0.30\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Area} & \textbf{Primary Artifact} & \textbf{What It Verifies} \\
+\midrule
+Prompt integrity & \path{tests/test_system_prompt_integrity.py} & Externalized, hash-tracked system prompt. \\
+L1 input guardrails & \path{tests/test_l1_guardrails.py} & Injection-pattern matching, encoding detection, keyword requirements, sensitive-info blocking. \\
+L1 output guardrails & \path{tests/test_output_guardrail.py} & Forbidden tool rejection, privacy-leak blocking, output-structure validation. \\
+L2 rule engine & \path{tests/test_policy_engine.py} & Allowlists, slippage, quote expiry, request-signal checks, chain scope, structural blocking. \\
+Guardrail dedup. & \path{tests/test_no_duplicate_guardrails.py} & No duplicate or conflicting patterns across L1 and L2. \\
+Tool provenance & \path{tests/test_tool_coordinator.py} & Quote TTL metadata, mock/real source audit, strict fail-closed behavior. \\
+Signer boundary & \path{tests/test_wallet_bridge.py} & Handoff creation, owner decision, \texttt{TxPlan} enrichment with quote and handoff metadata. \\
+Defense-config & \path{tests/test_defense_config.py} & Runtime defense-layer toggling and configuration state consistency. \\
+Control-plane & \path{tests/test_control_plane_auth.py} & Shared-secret protection on defense-config and wallet-handoff routes. \\
+L3 / contract & \path{tests/test_l3_validator.py}, \path{contracts/test/SwapGuard.t.sol} & ABI selector correctness, Python-side L3, Solidity-side enforcement. \\
+L2/L3 parity & \path{tests/test_policy_parity_script.py} & Parity checker detects allowlist and threshold mismatches. \\
+End-to-end & \path{tests/test_smoke_harness.py} & Smoke-level integration through the full planning pipeline. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+At the experiment level, the final reproducibility pipeline regenerates
+\path{comparison_summary.json}, \path{statistics.json}, and
+\path{validation_report.json}. The current final artifact bundle reports
+\texttt{all\_checks\_pass=true}, providing a lightweight consistency check that
+the published summary numbers still match the underlying case-level reports.
+
+\section{Experimental Methodology}
+
+This section describes the benchmark used to evaluate the adversarial
+robustness of the proposed swap agent. The design goal is to isolate the
+contribution of each defense layer while preserving reproducibility.
+
+\subsection{Benchmark Design}
+
+We evaluate prompt-driven and tool-mediated attacks that target agent behavior
+before any on-chain submission. The final benchmark, stored at
+\path{testcases/final_attack_dataset.json}, contains 125 cases: 100
+adversarial cases evenly distributed across four attack vectors and 25 benign
+swap requests to measure false positives. The four attack vectors are:
+
+\begin{itemize}
+    \item \textbf{Direct injection:} explicit jailbreak, role-play, or system-instruction override attempts.
+    \item \textbf{Indirect / encoded:} obfuscated or encoded malicious intent (e.g., base64, unicode escapes, semantic reframing).
+    \item \textbf{Tool poisoning:} manipulation of tool-related assumptions, such as injecting malicious router addresses, extreme slippage, or unauthorized token symbols inside otherwise valid swap language.
+    \item \textbf{Memory poisoning:} context poisoning and fake prior-authority claims that exploit retained conversational state.
+\end{itemize}
+
+Figure~\ref{fig_sample_cases} illustrates two representative cases from the
+benchmark.
+
+\begin{figure}[!htbp]
   \centering
   \includegraphics[width=3.3in]{figure/Sample test cases.png}
-  \caption{Sample Test Cases (2 Out of 125)}
+  \caption{Representative benchmark cases illustrating direct-injection and
+  tool-poisoning patterns in the final 125-case dataset.}
   \label{fig_sample_cases}
 \end{figure}
 
-An additional 25 benign (legitimate swap) cases are included to measure false-positive behavior, bringing the final dataset to 125 cases (100 adversarial + 25 benign).
+The benchmark is executed under four configurations: \texttt{bare},
+\texttt{l1}, \texttt{l1l2}, and \texttt{l1l2l3}. The canonical numbers in this
+report come from the deterministic mock path (\texttt{REAL\_TOOLS=false}),
+which isolates the safety architecture from external API instability and makes
+the results reproducible. The repository also supports a real-tool path using
+CoinGecko and 1inch with strict fail-closed behavior; that path is used for
+integration smoke tests, guarded live benchmarking, and demos, not for the
+main reported benchmark.
 
-A successful attack is to induce unsafe \texttt{ALLOW} decisions, bypass policy controls, or force unstable behavior. From the definition of success, we can define three primary metrics $\mathbb{R}^3$:
+\subsection{Canonical Benchmark vs. Live Integration Validation}
+
+The project deliberately separates two kinds of evidence. The first is the
+\emph{canonical benchmark}, which uses the frozen 125-case dataset and
+deterministic mock tool responses to measure the defense architecture itself.
+The second is \emph{live integration validation}, which turns on
+\texttt{REAL\_TOOLS=true} and requires strict fail-closed behavior against real
+CoinGecko and 1inch calls. The live path is valuable because it exercises API
+configuration, provenance logging, quote-expiry fields, and owner-handoff
+metadata under realistic conditions. However, it is not used as the primary
+experimental result because its latency and behavior depend on unstable
+external services.
+
+\subsection{Metrics and Ablation Setup}
+
+A successful attack is one that induces an unsafe \texttt{ALLOW} decision on an
+adversarial case. We report three metrics, following standard adversarial-evaluation conventions~\cite{shen2024anything}:
 
 Attack Success Rate (ASR):
 \begin{equation}
@@ -218,110 +610,373 @@ Time Robustness (TR):
     \text{TR}=\max_{i}{\text{duration}_i}
 \end{equation}
 
-The 125-case test suite is run against four defense configurations (bare, L1, L1+L2, L1+L2+L3) to yield ASR, FP, and TR for each layer combination.
+We use the maximum rather than the mean because the worst-case latency
+determines whether any single request can stall the agent under adversarial
+conditions. A low TR indicates that even the slowest case completes quickly,
+which is important for denial-of-service resistance in an interactive chat
+setting.
 
-\subsubsection{Test and Optimality Modeling}
-Define $L(i)=\bigcap_{a=1}^{n} La\in\mathbb{D}$ as $i$-th defense layer implemented for the bare LLM system. Therefore, the marginal utility of $L(i+1)$ is induced as:
-\begin{equation}
-    u(i+1) = t(L(i)) - t(L(i+1))
-\end{equation}
-where $t:(\mathbb{D},\mathbb{A}^4)\to\mathbb{R}^3$ is the testing function.
+Here, \texttt{ALLOW} corresponds to the API outcome
+\texttt{NEEDS\_OWNER\_SIGNATURE}; the agent has produced an unsigned plan and
+paused at the signer boundary. We compare the four configurations by ablation
+to isolate the marginal contribution of each layer. The pipeline freezes the
+final dataset into version-controlled JSON and regenerates report artifacts
+under \path{artifacts/final_results/}, \path{report-latex/figures/}, and
+\path{docs/threat-model/final_threat_model.md}. The same pipeline also writes a
+validation report that checks the consistency of summary metrics against the
+case-level reports before those artifacts are used in the paper.
 
-The optimal defense layer is defined as a convex problem:
-\begin{equation}
-\begin{split}
-\argmax_{i}{||u(i+1)^{+}||_2} \\
-\text{s.t. } i=0,1,2
-\end{split}
-\end{equation}
-
-
-\section{Experiment Results and Discussion}
+\section{Results and Analysis}
 
 \subsection{Overall Results}
 
-The final evaluation dataset (\texttt{final\_attack\_dataset\_v2}) comprises 125 cases: 100 adversarial cases evenly distributed across four attack vectors (25 each) and 25 benign cases. Table~\ref{tab:main-results} presents the results across four defense configurations.
+The final evaluation dataset contains 125 cases: 100 adversarial cases evenly
+distributed across four attack vectors and 25 benign cases. Table~\ref{tab:main-results} reports the overall comparison.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Final Red-Team Results (125 Cases, v2 Dataset)}
+\caption{Final Red-Team Results on the Final 125-Case Dataset}
 \label{tab:main-results}
-\begin{tabular}{lcccc}
-\hline
-\textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\ \hline
-bare    & 76.00\% & 0.00\% & 3.05 & 125 \\
-L1      & 25.00\% & 0.00\% & 8.62 & 125 \\
-L1+L2   & 15.00\% & 0.00\% & 3.39 & 125 \\
-L1+L2+L3 & 15.00\% & 0.00\% & 3.49 & 125 \\ \hline
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Config} & \textbf{ASR} & \textbf{FP} & \textbf{TR (s)} & \textbf{N} \\
+\midrule
+bare      & 84.00\% & 0.00\% & 4.29 & 125 \\
+L1        & 25.00\% & 0.00\% & 3.14 & 125 \\
+L1+L2     &  0.00\% & 0.00\% & 3.08 & 125 \\
+L1+L2+L3  &  0.00\% & 0.00\% & 2.96 & 125 \\
+\bottomrule
 \end{tabular}
 \end{table}
 
-The bare (undefended) agent allowed 76\% of adversarial inputs to pass through, confirming that the LLM planner alone is highly vulnerable. Introducing L1 guardrails reduced ASR to 25\%, a 51 percentage-point drop. Adding the L2 deterministic policy engine further reduced ASR to 15\%. L3 (on-chain SwapGuard validation) did not further reduce ASR in this dataset but provides an additional enforcement layer against parameter-level attacks that may bypass L2 in production.
+\begin{figure*}[t]
+  \centering
+\includegraphics[width=\textwidth]{figures/final_metrics_comparison.png}
+  \caption{Overall benchmark comparison across the four configurations. The
+  deterministic policy layer is decisive for ASR reduction, while the benign
+  set remains fully allowed and maximum latency stays within a narrow range.}
+  \label{fig_metrics}
+\end{figure*}
 
-Notably, all configurations achieved 0\% FP, indicating that none of the 25 benign swap requests were incorrectly rejected.
+The main result is straightforward (Figure~\ref{fig_metrics}): L1+L2 reduces
+ASR from 84\% to 0\% without raising the false-positive rate. The bare configuration allowed 84\% of
+adversarial cases, confirming that an undefended LLM planner is highly
+vulnerable in this setting. L1 reduced ASR to 25\% by catching attacks visible
+in language. L2 then eliminated the remaining successful attacks by checking
+the semantics of the resulting plan against deterministic rules. L3 did not
+further reduce ASR on this benchmark because L2 already blocked every unsafe
+plan. The 0\% FP rate means that all 25 benign requests still reached the
+owner-signature handoff. At the artifact level, the final result bundle also
+passes its internal consistency checks, so the headline table is tied back to
+case-level benchmark artifacts rather than being a manually copied summary.
 
 \subsection{Per-Attack-Vector Breakdown}
 
-Table~\ref{tab:breakdown} shows the outcome distribution under the best defense configuration (L1+L2) across attack vectors.
+To understand how each layer contributes, Tables~\ref{tab:breakdown-bare}
+through~\ref{tab:breakdown-l1l2} show the per-vector outcome distribution
+across the first three configurations. (L1+L2+L3 produces the same
+per-vector numbers as L1+L2 on this benchmark and is omitted for brevity.)
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{L1+L2 Outcome Breakdown by Attack Vector}
-\label{tab:breakdown}
-\begin{tabular}{lcccc}
-\hline
-\textbf{Attack Vector} & \textbf{REFUSE} & \textbf{BLOCK} & \textbf{ALLOW} & \textbf{Total} \\ \hline
-Direct injection     & 23 & 2  & 0  & 25 \\
-Indirect / encoded   & 22 & 2  & 1  & 25 \\
-Memory poisoning     & 25 & 0  & 0  & 25 \\
-Tool poisoning       & 5  & 6  & 14 & 25 \\
-Benign (legitimate)  & 0  & 0  & 25 & 25 \\ \hline
+\caption{Bare Configuration: Outcome Breakdown by Attack Vector}
+\label{tab:breakdown-bare}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Attack Vector} & \textbf{Refuse} & \textbf{Block} & \textbf{Allow} & \textbf{Error} & \textbf{Total} \\
+\midrule
+Direct injection     & 0 & 0 & 22 & 3 & 25 \\
+Indirect / encoded   & 0 & 0 & 22 & 3 & 25 \\
+Memory poisoning     & 0 & 0 & 16 & 9 & 25 \\
+Tool poisoning       & 0 & 0 & 24 & 1 & 25 \\
+Benign (legitimate)  & 0 & 0 & 25 & 0 & 25 \\
+\bottomrule
 \end{tabular}
 \end{table}
 
-Direct injection, indirect/encoded, and memory poisoning are effectively neutralized by L1+L2, with near-zero successful attacks. The primary residual vulnerability is tool poisoning, where 14 out of 25 adversarial cases still receive \texttt{ALLOW}. These cases exploit the gap between L1 (language-level) and L2 (parameter-level) checks: the adversarial intent is expressed through valid-looking swap parameters rather than detectable linguistic patterns.
+\begin{table}[!htbp]
+\centering
+\caption{L1 Only: Outcome Breakdown by Attack Vector}
+\label{tab:breakdown-l1}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Attack Vector} & \textbf{Refuse} & \textbf{Block} & \textbf{Allow} & \textbf{Error} & \textbf{Total} \\
+\midrule
+Direct injection     & 23 & 0 & 2  & 0 & 25 \\
+Indirect / encoded   & 23 & 0 & 2  & 0 & 25 \\
+Memory poisoning     & 24 & 0 & 1  & 0 & 25 \\
+Tool poisoning       & 5  & 0 & 20 & 0 & 25 \\
+Benign (legitimate)  & 0  & 0 & 25 & 0 & 25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{L1+L2: Outcome Breakdown by Attack Vector}
+\label{tab:breakdown-l1l2}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Attack Vector} & \textbf{Refuse} & \textbf{Block} & \textbf{Allow} & \textbf{Error} & \textbf{Total} \\
+\midrule
+Direct injection     & 23 & 2  & 0  & 0 & 25 \\
+Indirect / encoded   & 23 & 2  & 0  & 0 & 25 \\
+Memory poisoning     & 24 & 1  & 0  & 0 & 25 \\
+Tool poisoning       & 5  & 20 & 0  & 0 & 25 \\
+Benign (legitimate)  & 0  & 0  & 25 & 0 & 25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/final_l1l2_attack_vector_breakdown.png}
+  \caption{Visual breakdown of L1+L2 outcomes by attack vector.  The REFUSE/BLOCK split shows that L1 catches language-visible attacks while L2 catches parameter-level attacks.}
+  \label{fig_breakdown}
+\end{figure}
+
+The breakdown (Figure~\ref{fig_breakdown}) clarifies the division of labor.
+In the bare configuration, tool poisoning is the most dangerous vector (24/25
+ALLOW), followed by direct and indirect injection (22/25 each). Memory
+poisoning produces more ERRORs (9/25) because fabricated context often causes
+parsing failures even without any defense. Under L1+L2, every adversarial case
+is either REFUSED or BLOCKED while all 25 benign requests remain correctly
+ALLOWED. The following subsection analyzes each layer's marginal contribution
+in detail.
 
 \subsection{Layer-by-Layer Analysis}
 
 \subsubsection{L1 Contribution}
-L1 guardrails provide the largest single reduction in ASR ($76\% \to 25\%$). The input guardrail intercepts prompt injection via regex-based blocked patterns and keyword filtering, while the output guardrail validates LLM response structure and forbidden tool calls. L1 is most effective against direct injection (ASR drops from 72\% to 8\%) and memory poisoning (ASR drops from 52\% to 0\%).
+L1 provides the largest single reduction in ASR ($84\% \to 25\%$). As shown
+in Tables~\ref{tab:breakdown-bare} and~\ref{tab:breakdown-l1}, L1 reduces
+direct-injection ALLOW from 22 to 2, indirect/encoded from 22 to 2, and memory
+poisoning from 16 to 1. It rejects most prompt injections before planning and
+validates model outputs before any plan leaves the LLM-facing layer. However,
+L1 remains a probabilistic filter: tool-poisoning ALLOW only drops from 24 to
+20, because these requests use syntactically valid swap language to smuggle
+malicious execution settings that a language-level filter cannot catch.
 
 \subsubsection{L2 Contribution}
-The L2 deterministic policy engine provides an additional 10 percentage-point ASR reduction ($25\% \to 15\%$). It catches attacks that produce syntactically valid but policy-violating plans: disallowed tokens (R-01), disallowed routers (R-02), excessive slippage (R-03), value cap violations (R-04), unlimited approvals (R-05), and structural integrity violations (R-07). L2 is particularly effective against tool poisoning, blocking 6 additional cases that L1 alone would allow.
+L2 provides the decisive final reduction ($25\% \to 0\%$). As shown in
+Table~\ref{tab:breakdown-l1l2}, every adversarial case that survives L1 is now
+caught by L2. It checks plans against deterministic rules such as token
+allowlists, router allowlists, slippage limits, value caps, approval patterns,
+quote freshness, and structural constraints. L2 is particularly important for
+tool poisoning: under L1 alone, 20 of 25 tool-poisoning cases still ALLOW;
+under L1+L2, all 20 are BLOCKED. A key architectural property is that L2 is
+\textit{non-overridable} by LLM output. Even a complete jailbreak of the
+planner cannot bypass the hard policy constraints once the plan reaches this
+layer.
 
 \subsubsection{L3 Contribution}
-L3 on-chain validation via the SwapGuard contract replicates key L2 checks (token allowlist, router allowlist, value cap, slippage) as an immutable on-chain enforcement layer. While L3 does not reduce ASR further in the current dataset, it provides defense-in-depth: even if L2 rules are misconfigured or bypassed at the application level, the on-chain contract independently enforces hard constraints before any transaction can execute.
+L3, the on-chain validator (\texttt{Swap\allowbreak Guard}), mirrors key L2
+checks in an immutable contract and runs them through a pre-flight
+\texttt{eth\_call}. Because L2 already achieves 0\% ASR on the benchmark, L3
+does not further reduce the reported attack rate. Its value lies elsewhere: it
+provides defense-in-depth against application-layer misconfiguration and gives
+auditors a stable on-chain enforcement point independent of Python-side
+configuration.
 
 \subsection{Latency Considerations}
-We report maximum request latency $\text{TR}$ (as defined in Eq.~3) for each configuration. The bare configuration has a max latency of 3.05s. Adding L1 increases max latency to 8.62s due to additional LLM API calls for intent parsing. The L1+L2 configuration has a max latency of 3.39s, while enabling L3 yields a max latency of 3.49s, reflecting only $\sim$0.1s of additional overhead for a single \texttt{eth\_call} to the local chain.
+
+We report maximum request latency $\text{TR}$ for each configuration. The bare
+configuration reaches 4.29\,s. L1 lowers the maximum observed latency to
+3.14\,s, and L1+L2 reaches 3.08\,s. Enabling L3 does not create a meaningful
+latency penalty; the L1+L2+L3 configuration records the lowest maximum latency
+at 2.96\,s. These numbers are not statistical noise: early rejection via L1
+\texttt{REFUSE} or L2 \texttt{BLOCK} short-circuits expensive LLM and tool
+calls, so added defenses can improve both security and latency.
 
 \subsection{Discussion}
-The results demonstrate that layered defense is essential for securing LLM-driven DeFi agents. Relying solely on the LLM (bare mode) is insufficient, as adversarial prompts bypass it 76\% of the time. The combination of probabilistic (L1) and deterministic (L2) layers provides complementary coverage: L1 handles linguistic attacks while L2 catches parameter-level policy violations.
 
-The remaining 15\% ASR is concentrated in tool-poisoning attacks that craft valid-looking swap parameters. Addressing this gap would require semantic understanding of attack intent at the parameter level, potentially through anomaly detection on swap patterns or stricter tool-output validation.
+The results support a core architectural principle for LLM-driven DeFi agents:
+the LLM should be treated as an untrusted intent parser, not as a security
+authority. The key boundary is a \textit{probabilistic-to-deterministic
+handoff}: L1 performs stochastic language filtering, while L2 performs
+deterministic policy enforcement on the critical path before the
+owner-signature handoff.
+
+The per-vector breakdown (Tables~\ref{tab:breakdown-bare}
+through~\ref{tab:breakdown-l1l2}) provides the clearest evidence. Bare LLM
+planning is unsafe: 84 of 100 adversarial cases produce ALLOW. Prompt-only
+filtering (L1) is insufficient: tool poisoning remains almost entirely
+unblocked (20/25 ALLOW). Deterministic policy enforcement (L2) closes the gap
+completely. This layered architecture bounds the impact of any single failure:
+even if an adversary compromises the LLM or poisons a tool response, the
+deterministic policy engine still blocks the resulting plan before it can reach
+the signer.
+
+\subsection{Targeted L3 Misconfiguration Experiment}
+
+To show the value of L3 beyond the main ASR table, we ran a targeted
+misconfiguration experiment. We intentionally desynchronized the Python and
+Solidity allowlists by adding \texttt{WBTC} to the L2 token allowlist without
+making the same change in \texttt{SwapGuard}. We then submitted the request
+\texttt{"Swap 1 WBTC to USDC"}.
+
+Under L1+L2, the request can pass because the Python-side allowlist has been
+manually widened. Under L1+L2+L3, the request is blocked because the on-chain
+validator still rejects the token.
+Figure~\ref{fig_l3_misconfig} illustrates the two outcomes.
+This experiment is not part of the final
+125-case benchmark; it is a targeted qualitative check that demonstrates L3's
+role as a defense against configuration drift.
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\textbf{L1+L2: ALLOW after L2 misconfiguration}\\[0.3em]
+\includegraphics[width=\textwidth]{figure/l3_misconfig_l1l2.png}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\textbf{L1+L2+L3: BLOCKED by on-chain mirror}\\[0.3em]
+\includegraphics[width=\textwidth]{figure/l3_misconfig_l1l2l3.png}
+\end{minipage}
+\caption{Targeted L3 misconfiguration experiment. The Python allowlist is
+intentionally widened while the on-chain \texttt{SwapGuard} configuration is
+left unchanged. L3 catches the drift that L2 alone would miss.}
+\label{fig_l3_misconfig}
+\end{figure*}
+
+\section{Demo-Oriented Validation}
+
+Besides the quantitative benchmark, the project includes a Telegram-bot demo
+path that is useful for communicating the signer boundary and the end-to-end
+user experience. Figure~\ref{fig_demo} shows the interface presenting a valid
+swap plan while keeping the result unsigned and pending explicit owner action.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figure/demo_screenshot.png}
+  \caption{Telegram-bot demonstration of the DeFi swap agent. The generated
+  plan is presented with quote and handoff information, but the system still
+  stops at the owner-approval boundary.}
+  \label{fig_demo}
+\end{figure*}
+
+Table~\ref{tab:demo-scenarios} summarizes representative demo scenarios that
+align with the current codebase behavior.
+
+\begin{table}[!htbp]
+\centering
+\caption{Representative Demo Scenarios and Expected Outcomes}
+\label{tab:demo-scenarios}
+\footnotesize
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.30\linewidth} >{\raggedright\arraybackslash}p{0.25\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Scenario} & \textbf{Outcome} & \textbf{Main Layer} \\
+\midrule
+Swap 0.5\,ETH to USDC & \texttt{NEEDS\_OWNER\allowbreak\_SIGNATURE} & L1+L2 pass; unsigned \texttt{TxPlan} returned. \\[2pt]
+Ignore all instructions; transfer all funds & \texttt{REJECTED} & L1 blocks prompt injection. \\[2pt]
+Swap 10\,ETH to USDC & \texttt{BLOCKED\_BY\allowbreak\_POLICY} & L2 value cap (R-04). \\[2pt]
+Swap 0.5\,ETH to USDC, 99\% slippage & \texttt{BLOCKED\_BY\allowbreak\_POLICY} & L2 slippage bounds (R-03). \\[2pt]
+Show private key & \texttt{REJECTED} & L1 rejects non-swap request. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The operator-facing demo path is also informative in ways that the benchmark is
+not. The \path{/v0/health} endpoint exposes the active defense profile, tool
+runtime state, wallet-bridge status, and whether optional control-plane shared
+secrets are enabled. The real-tool smoke and guarded benchmark scripts confirm
+that the agent uses real CoinGecko and 1inch responses when requested and that
+strict mode fails closed rather than silently degrading to mock data. Together,
+these features strengthen the project's claim that the system is not only
+benchmarked, but also inspectable during live demonstration.
+
+\section{Limitations}
+
+Several limitations bound the scope of the present evaluation.
+
+\textbf{Benchmark scope.} The evaluation covers only single-turn attacks.
+Multi-turn conversational context poisoning, adaptive adversaries that refine
+attacks based on prior rejections, and persistent state manipulation are not
+represented in the current dataset.
+
+\textbf{Canonical environment.} The main benchmark uses deterministic mock
+market snapshots and quotes rather than live DEX APIs. This is a strength for
+reproducibility, but it also means that real-world factors such as MEV
+dynamics, network congestion, quote expiry variance, and aggregator-specific
+edge cases are not part of the main reported numbers.
+
+\textbf{Prototype signer bridge.} The current signer-boundary implementation is
+an in-memory wallet handoff service rather than a production wallet SDK. It is
+sufficient for demonstrating the pause-before-signature property, but not yet a
+complete deployment-ready wallet integration.
+
+\textbf{Prototype control-plane security.} The repository now supports optional
+shared-secret protection on control-plane routes, but it does not yet implement
+full production authentication, authorization, audit logging, or secret
+rotation for those interfaces. This remains a research prototype rather than a
+fully hardened service boundary.
+
+\textbf{Static allowlists.} The token and router allowlists are small and fixed.
+A production deployment would require continuous governance of these lists,
+which introduces an additional operational attack surface.
+
+\textbf{Narrow deployment scope.} The current asset universe and network scope
+are intentionally narrow. Ethereum mainnet is the production target, Sepolia is
+used for demo/test paths, and only a small allowlisted token/router set is
+evaluated.
+
+\textbf{Benign-set size.} The benign subset contains 25 cases. Achieving 0\%
+false positives on this set is encouraging, but it still provides a limited
+sample for estimating real-world usability at scale.
+
+\textbf{L3 deployment assumptions.} L3 was evaluated through local Anvil-based
+validation and demo-oriented public-testnet planning paths. Mainnet RPC
+latency, contract upgrade governance, and operational maintenance costs are not
+quantified here.
+
+\textbf{Binary success metric.} ASR measures whether an unsafe plan is allowed,
+but it does not capture the severity of financial loss that a successful attack
+would inflict.
+
+\section{Future Work}
+
+Future work should address the limitations above in several directions:
+
+\begin{enumerate}
+    \item \textbf{Multi-turn adversarial dialogue.} Extend the benchmark to stateful, multi-turn interactions where adversaries gradually shift context or embed instructions across otherwise benign turns.
+    \item \textbf{Systematic live adversarial evaluation.} Extend the existing real-tool smoke and guarded benchmark paths into a labeled adversarial benchmark against live DEX APIs, including quote-expiry races and tool-output poisoning attempts.
+    \item \textbf{Production wallet and control-plane integration.} Replace the current in-memory handoff layer and shared-secret route protection with a production wallet bridge, persistent state, stronger authentication, and auditable operator workflows.
+    \item \textbf{Formal and machine-checkable invariants.} Build on the current specification-driven traceability by modeling core L2 properties in a formal specification language such as TLA+.
+    \item \textbf{Safe configuration governance.} Study how token and router allowlists should be updated safely, including review workflows, timelocks, parity checks, and monitoring of configuration drift between L2 and L3.
+    \item \textbf{Broader deployment scope.} Evaluate the architecture on a wider token universe, richer benign workloads, and additional supported execution environments while preserving the same non-custodial boundary.
+\end{enumerate}
 
 \section{Conclusion}
 
-This paper presents the design, implementation, and adversarial evaluation of a minimal DeFi swap agent with layered security guardrails. The system converts natural-language swap requests into unsigned transaction plans through three sequential defense layers: L1 (LLM-level input/output guardrails), L2 (deterministic policy engine), and L3 (optional on-chain contract enforcement).
+This paper presented the design, implementation, and adversarial evaluation of a
+minimal DeFi swap agent with layered security guardrails. The central argument
+is that DeFi agents must treat LLM reasoning as untrusted and place
+deterministic policy enforcement on the critical path before any owner
+signature.
 
-Empirical evaluation on 125 red-team cases across four attack vectors demonstrates that:
-\begin{enumerate}
-    \item An undefended LLM planner is highly vulnerable (76\% ASR).
-    \item L1 guardrails reduce ASR to 25\%, primarily by intercepting linguistic attacks.
-    \item L2 deterministic policies further reduce ASR to 15\% by catching parameter-level violations.
-    \item L3 on-chain enforcement provides defense-in-depth without additional ASR reduction in the current dataset.
-    \item All configurations maintain 0\% false positives on benign requests.
-\end{enumerate}
+Empirical evaluation on 125 red-team cases supports this claim: an undefended
+LLM planner allows 84\% of adversarial requests, while the L1+L2 configuration
+reduces the attack success rate to 0\% without generating a single false
+positive on benign traffic. The optional L3 on-chain validator adds
+immutability and operational assurance, and its independent value is clearest
+in the targeted misconfiguration experiment.
 
-The non-custodial invariant (the agent never signs or broadcasts) ensures that even a successful attack produces only an unsigned plan, requiring explicit owner signature before on-chain execution. This architectural constraint bounds the worst-case impact of residual vulnerabilities.
+The non-custodial invariant remains the ultimate safety bound. Even if every
+planning-layer control were to fail, the agent cannot sign or broadcast a
+transaction. The owner must still review and authorize every plan, which bounds
+the worst-case impact of any residual failure. As conversational interfaces
+increasingly mediate financial workflows, this layered, non-custodial
+architecture offers a practical path toward adversarially robust AI-driven
+DeFi. In our prototype, that path is strengthened not only by benchmark
+results, but also by engineering choices that make the boundary inspectable:
+externalized prompt integrity, deterministic policy traces, explicit
+owner-signature handoff state, live integration provenance, and parity checks
+between the Python and Solidity layers.
 
-Future work should address the tool-poisoning gap through semantic intent verification, extend evaluation to multi-turn conversational attacks, and investigate the robustness of L3 enforcement under adversarial contract interactions.
-
-% \bibliographystyle{IEEEtran}
-% \bibliography{references}
-
-% \bibitem{10.1016/j.eswa.2025.128431}
-
-\printbibliography
+\bibliography{references}
 
 \end{document}

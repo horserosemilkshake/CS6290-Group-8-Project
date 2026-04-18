@@ -1,6 +1,8 @@
 # Role E Reproducibility Guide
 
-This directory contains the Milestone 3 Role E automation for reproducing the final dataset bundle, benchmark summaries, figures, and threat-model writeup.
+This directory contains the Milestone 3 Role E automation for reproducing the
+final 125-case dataset bundle, benchmark summaries, figures, and threat-model
+write-up.
 
 ## Exact command
 
@@ -12,8 +14,8 @@ python scripts/run_integration_test.py
 
 The default command is fully offline and deterministic. It:
 
-1. freezes the final versioned attack dataset at `testcases/final_attack_dataset_v1.json`
-2. loads the canonical benchmark reports for `bare`, `l1`, and `l1l2`
+1. freezes the final dataset at `testcases/final_attack_dataset.json`
+2. loads the canonical checked-in benchmark reports for `bare`, `l1`, `l1l2`, and `l1l2l3`
 3. writes final result bundles to `artifacts/final_results/`
 4. computes statistics and validation checks
 5. exports report-ready figures and a LaTeX table to `report-latex/figures/`
@@ -21,10 +23,13 @@ The default command is fully offline and deterministic. It:
 
 ## Optional live mode
 
-If the FastAPI agent is already running locally, you can regenerate the benchmark reports from the live service:
+If the FastAPI agent is already running locally, you can regenerate benchmark
+reports from the live service:
 
 ```bash
 python scripts/run_integration_test.py --mode live
 ```
 
-By default, live mode expects the service at `http://127.0.0.1:8000`.
+By default, live mode expects the service at `http://127.0.0.1:8000`. The live
+path is useful when you want to re-run the benchmark against the current local
+service instead of reusing the checked-in final artifacts.

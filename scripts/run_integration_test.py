@@ -2,8 +2,8 @@
 Milestone 3 reproducibility pipeline (4-config comparison).
 
 Default behavior is fully offline and deterministic:
-1. Freeze the final attack dataset (v2: 100 adversarial + 25 benign).
-2. Reuse canonical archived results for bare / l1 / l1l2.
+1. Freeze the final 125-case dataset (100 adversarial + 25 benign).
+2. Reuse canonical archived final reports for all four configurations.
 3. Regenerate final_results, statistics, figures, tables, and final threat model.
 
 Optional live mode evaluates all 4 configs (including l1l2l3) against a running
@@ -30,11 +30,13 @@ from harness.metrics import CaseResult, compute_asr, compute_fp, compute_tr
 from harness.runner import SmokeHarness
 
 CONFIGS = ("bare", "l1", "l1l2", "l1l2l3")
+FINAL_DATASET_RELATIVE = Path("testcases") / "final_attack_dataset.json"
+FINAL_DATASET_LABEL = "final_attack_dataset"
+FINAL_REPORT_STEM = "final_attack_dataset"
+EXPECTED_FINAL_CASE_COUNT = 125
 ARCHIVED_RESULTS = {
-    "bare": ROOT / "artifacts" / "results_bare_adv_100_cases.json",
-    "l1": ROOT / "artifacts" / "results_l1_adv_100_cases.json",
-    "l1l2": ROOT / "artifacts" / "results_l1l2_adv_100_cases.json",
-    "l1l2l3": ROOT / "artifacts" / "results_l1l2l3_adv_100_cases.json",
+    config: ROOT / "artifacts" / "final_results" / f"results_{config}_{FINAL_REPORT_STEM}.json"
+    for config in CONFIGS
 }
 ATTACK_VECTOR_MAP = {
     "adv-direct-": "direct_injection",
@@ -121,6 +123,12 @@ def load_archived_reports() -> Dict[str, Dict[str, Any]]:
             print(f"[WARN] No archived results for config '{config}', skipping (use --mode live to generate)")
             continue
         report = load_json(path)
+        report_case_count = len(report.get("results", []))
+        if report_case_count != EXPECTED_FINAL_CASE_COUNT:
+            raise RuntimeError(
+                f"Archived report for '{config}' is not the final 125-case benchmark: "
+                f"{path.relative_to(ROOT)} has {report_case_count} results."
+            )
         report.setdefault("meta", {})
         report["meta"]["source_mode"] = "archived"
         report["meta"]["source_report"] = str(path.relative_to(ROOT))
@@ -153,6 +161,8 @@ def write_final_reports(
     written: Dict[str, Path] = {}
     output_dir.mkdir(parents=True, exist_ok=True)
     for config, report in reports.items():
+        report.setdefault("run", {})
+        report["run"]["suite_name"] = FINAL_DATASET_LABEL
         path = output_dir / f"results_{config}_{dataset_name}.json"
         path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         written[config] = path
@@ -167,7 +177,7 @@ def build_statistics(
     dataset_attack_vectors = Counter(case["attack_vector"] for case in dataset_cases)
     statistics_payload: Dict[str, Any] = {
         "dataset": {
-            "name": "final_attack_dataset_v2",
+            "name": FINAL_DATASET_LABEL,
             "case_count": dataset_case_count,
             "attack_vector_counts": dict(dataset_attack_vectors),
         },
@@ -250,7 +260,7 @@ def write_summary_files(
         json.dumps(
             {
                 "dataset": {
-                    "name": "final_attack_dataset_v2",
+                    "name": FINAL_DATASET_LABEL,
                     "case_count": len(dataset_cases),
                 },
                 "configs": summary_rows,
@@ -375,7 +385,7 @@ def write_latex_table(statistics_payload: Dict[str, Any], figures_dir: Path) -> 
     lines = [
         "\\begin{table}[t]",
         "\\centering",
-        "\\caption{Final Red-Team Results on the Versioned Attack Dataset (v2)}",
+        "\\caption{Final Red-Team Results on the Final 125-Case Dataset}",
         "\\label{tab:final-role-e-results}",
         "\\begin{tabular}{lcccc}",
         "\\hline",
@@ -433,26 +443,40 @@ def write_final_threat_model(statistics_payload: Dict[str, Any], output_path: Pa
     l1l2 = available.get("l1l2", {})
     l1l2l3 = available.get("l1l2l3", {})
 
+    def _adversarial_allow_count(config_payload: Dict[str, Any]) -> int:
+        breakdown = config_payload.get("attack_vector_breakdown", {})
+        total = 0
+        for vector, outcomes in breakdown.items():
+            if vector == "none":
+                continue
+            total += int(outcomes.get("ALLOW", 0))
+        return total
+
+    def _overall_error_count(config_payload: Dict[str, Any]) -> int:
+        return int(config_payload.get("outcome_counts", {}).get("ERROR", 0))
+
+    adversarial_case_count = dataset["case_count"] - dataset["attack_vector_counts"].get("none", 0)
+
     failure_lines = []
     if bare:
         failure_lines.append(
-            f"- Bare configuration allowed {bare.get('outcome_counts', {}).get('ALLOW', 0)} of "
-            f"{bare.get('sample_size', 0)} cases, confirming the undefended planner is highly vulnerable."
+            f"- Bare configuration allowed {_adversarial_allow_count(bare)} of "
+            f"{adversarial_case_count} adversarial cases, confirming the undefended planner is highly vulnerable."
         )
         failure_lines.append(
-            f"- Bare mode also produced {bare.get('outcome_counts', {}).get('ERROR', 0)} internal errors."
+            f"- Bare mode also produced {_overall_error_count(bare)} internal errors."
         )
     if l1:
         failure_lines.append(
-            f"- L1 reduced successful attacks to {l1.get('outcome_counts', {}).get('ALLOW', 0)} cases."
+            f"- L1 reduced successful attacks to {_adversarial_allow_count(l1)} adversarial cases."
         )
     if l1l2:
         failure_lines.append(
-            f"- L1+L2 reduced successful attacks to {l1l2.get('outcome_counts', {}).get('ALLOW', 0)} cases."
+            f"- L1+L2 reduced successful attacks to {_adversarial_allow_count(l1l2)} adversarial cases."
         )
     if l1l2l3:
         failure_lines.append(
-            f"- L1+L2+L3 reduced successful attacks to {l1l2l3.get('outcome_counts', {}).get('ALLOW', 0)} cases "
+            f"- L1+L2+L3 reduced successful attacks to {_adversarial_allow_count(l1l2l3)} adversarial cases "
             f"with on-chain enforcement providing an additional verification layer."
         )
     failure_section = "\n".join(failure_lines)
@@ -461,7 +485,7 @@ def write_final_threat_model(statistics_payload: Dict[str, Any], output_path: Pa
 
 **Owner:** Role E - Red Team / Measurement  
 **Milestone:** 3  
-**Dataset:** `testcases/final_attack_dataset_v2.json`  
+**Dataset:** `testcases/final_attack_dataset.json`  
 **Results Source:** `artifacts/final_results/`  
 
 ## 1. Scope
@@ -506,9 +530,9 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 
 ## 7. Limitations
 
-- The v2 dataset includes {dataset['attack_vector_counts'].get('none', 0)} benign cases alongside {dataset['case_count'] - dataset['attack_vector_counts'].get('none', 0)} adversarial cases, enabling meaningful FP evaluation.
-- Canonical final outputs are derived from archived benchmark reports unless `--mode live` is explicitly used with a running agent backend.
-- l1l2l3 config requires a running Anvil/Sepolia chain and is only available in `--mode live`.
+- The final dataset includes {dataset['attack_vector_counts'].get('none', 0)} benign cases alongside {dataset['case_count'] - dataset['attack_vector_counts'].get('none', 0)} adversarial cases, enabling meaningful FP evaluation.
+- Canonical final outputs are derived from the checked-in final benchmark reports unless `--mode live` is explicitly used with a running agent backend.
+- Live reruns are useful for revalidation, but the canonical paper numbers come from the fixed final benchmark artifacts.
 - The current evaluation focuses on planner and policy behavior rather than real on-chain execution.
 
 ## 8. Reproducibility
@@ -516,16 +540,16 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 Run the following command from the repository root:
 
 ```bash
-# Offline (archived bare/l1/l1l2 only):
+# Offline (rebuild report artifacts from the checked-in final benchmark reports):
 python scripts/run_integration_test.py
 
-# Live (all 4 configs including l1l2l3, requires running Agent + Anvil):
+# Live (rerun all 4 configs against a running agent backend):
 python scripts/run_integration_test.py --mode live
 ```
 
 This command regenerates:
 
-- `testcases/final_attack_dataset_v2.json`
+- `testcases/final_attack_dataset.json`
 - `artifacts/final_results/`
 - `report-latex/figures/`
 - this threat model document
@@ -579,7 +603,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--source-dataset",
-        default="testcases/final_attack_dataset_v2.json",
+        default="testcases/final_attack_dataset.json",
         help="Source dataset used to freeze the final versioned dataset.",
     )
     parser.add_argument(
@@ -591,7 +615,7 @@ def main() -> None:
     args = parser.parse_args()
 
     source_dataset = ROOT / args.source_dataset
-    final_dataset = ROOT / "testcases" / "final_attack_dataset_v2.json"
+    final_dataset = ROOT / FINAL_DATASET_RELATIVE
     final_results_dir = ROOT / "artifacts" / "final_results"
     figures_dir = ROOT / "report-latex" / "figures"
     threat_model_path = ROOT / "docs" / "threat-model" / "final_threat_model.md"
@@ -606,7 +630,7 @@ def main() -> None:
         print("[ERROR] No reports available. Use --mode live with a running agent to generate results.")
         sys.exit(1)
 
-    written_reports = write_final_reports(reports, "final_attack_dataset_v2", final_results_dir)
+    written_reports = write_final_reports(reports, FINAL_REPORT_STEM, final_results_dir)
     statistics_payload = build_statistics(dataset_cases, reports)
     summary_paths = write_summary_files(final_results_dir, dataset_cases, reports, statistics_payload)
     figure_paths = generate_figures(statistics_payload, figures_dir)

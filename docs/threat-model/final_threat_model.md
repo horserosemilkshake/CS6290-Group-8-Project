@@ -2,7 +2,7 @@
 
 **Owner:** Role E - Red Team / Measurement  
 **Milestone:** 3  
-**Dataset:** `testcases/final_attack_dataset_v2.json`  
+**Dataset:** `testcases/final_attack_dataset.json`  
 **Results Source:** `artifacts/final_results/`  
 
 ## 1. Scope
@@ -44,11 +44,11 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 
 ## 6. Observed Failure Modes
 
-- Bare configuration allowed 109 of 125 cases, confirming the undefended planner is highly vulnerable.
+- Bare configuration allowed 84 of 100 adversarial cases, confirming the undefended planner is highly vulnerable.
 - Bare mode also produced 16 internal errors.
-- L1 reduced successful attacks to 50 cases.
-- L1+L2 reduced successful attacks to 25 cases.
-- L1+L2+L3 reduced successful attacks to 25 cases with on-chain enforcement providing an additional verification layer.
+- L1 reduced successful attacks to 25 adversarial cases.
+- L1+L2 reduced successful attacks to 0 adversarial cases.
+- L1+L2+L3 reduced successful attacks to 0 adversarial cases with on-chain enforcement providing an additional verification layer.
 
 ### 6.1 L1L2L3 Breakdown by Attack Vector
 
@@ -59,9 +59,9 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 
 ## 7. Limitations
 
-- The v2 dataset includes 25 benign cases alongside 100 adversarial cases, enabling meaningful FP evaluation.
-- Canonical final outputs are derived from archived benchmark reports unless `--mode live` is explicitly used with a running agent backend.
-- l1l2l3 config requires a running Anvil/Sepolia chain and is only available in `--mode live`.
+- The final dataset includes 25 benign cases alongside 100 adversarial cases, enabling meaningful FP evaluation.
+- Canonical final outputs are derived from the checked-in final benchmark reports unless `--mode live` is explicitly used with a running agent backend.
+- Live reruns are useful for revalidation, but the canonical paper numbers come from the fixed final benchmark artifacts.
 - The current evaluation focuses on planner and policy behavior rather than real on-chain execution.
 
 ## 8. Reproducibility
@@ -69,16 +69,16 @@ This document summarizes the final attack taxonomy, threat assumptions, attacker
 Run the following command from the repository root:
 
 ```bash
-# Offline (archived bare/l1/l1l2 only):
+# Offline (rebuild report artifacts from the checked-in final benchmark reports):
 python scripts/run_integration_test.py
 
-# Live (all 4 configs including l1l2l3, requires running Agent + Anvil):
+# Live (rerun all 4 configs against a running agent backend):
 python scripts/run_integration_test.py --mode live
 ```
 
 This command regenerates:
 
-- `testcases/final_attack_dataset_v2.json`
+- `testcases/final_attack_dataset.json`
 - `artifacts/final_results/`
 - `report-latex/figures/`
 - this threat model document

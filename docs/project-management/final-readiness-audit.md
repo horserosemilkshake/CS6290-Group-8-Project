@@ -23,7 +23,7 @@ This document checks the current project against `docs/specification/` and highl
 | Item | Status | Notes |
 | --- | --- | --- |
 | Four-config comparison pipeline | Good | `scripts/run_integration_test.py --mode live` produces final results, figures, tables, and threat model |
-| Versioned final dataset | Good | `testcases/final_attack_dataset_v2.json` plus final result artifacts are present |
+| Final benchmark dataset | Good | `testcases/final_attack_dataset.json` plus final result artifacts are present |
 | L3 local-chain demonstration | Good | Local `SwapGuard` deployment plus `eth_call` validation is wired |
 | Report figure generation | Good | `report-latex/figures/` has current metrics and breakdown plots |
 | Threat model export | Good | `docs/threat-model/final_threat_model.md` regenerates from pipeline |
