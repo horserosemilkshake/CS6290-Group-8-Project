@@ -915,6 +915,15 @@ full production authentication, authorization, audit logging, or secret
 rotation for those interfaces. This remains a research prototype rather than a
 fully hardened service boundary.
 
+\textbf{Hosted-model dependence.} In the current implementation, the planner's
+main path uses an OpenAI-compatible hosted inference API, and the live
+integration path depends on external quote, price, and RPC services. This is
+acceptable for a research prototype, but it means the system is not yet a
+fully offline or self-contained deployment. Replacing the hosted LLM with a
+local model would reduce third-party data exposure, but it would not by itself
+remove the online trust assumptions associated with market data, quote
+freshness, and chain-state validation.
+
 \textbf{Static allowlists.} The token and router allowlists are small and fixed.
 A production deployment would require continuous governance of these lists,
 which introduces an additional operational attack surface.
@@ -933,6 +942,13 @@ validation and demo-oriented public-testnet planning paths. Mainnet RPC
 latency, contract upgrade governance, and operational maintenance costs are not
 quantified here.
 
+\textbf{Recovery trade-off of non-custodial design.} The system deliberately
+never stores the owner's private key or seed phrase. This is a core safety
+property, but it also means the agent provides no native account-recovery path
+if the owner loses wallet credentials. Similarly, the current wallet handoff
+service is in-memory only, so pending handoff state is not durable across
+service restarts.
+
 \textbf{Binary success metric.} ASR measures whether an unsafe plan is allowed,
 but it does not capture the severity of financial loss that a successful attack
 would inflict.
@@ -944,7 +960,9 @@ Future work should address the limitations above in several directions:
 \begin{enumerate}
     \item \textbf{Multi-turn adversarial dialogue.} Extend the benchmark to stateful, multi-turn interactions where adversaries gradually shift context or embed instructions across otherwise benign turns.
     \item \textbf{Systematic live adversarial evaluation.} Extend the existing real-tool smoke and guarded benchmark paths into a labeled adversarial benchmark against live DEX APIs, including quote-expiry races and tool-output poisoning attempts.
-    \item \textbf{Production wallet and control-plane integration.} Replace the current in-memory handoff layer and shared-secret route protection with a production wallet bridge, persistent state, stronger authentication, and auditable operator workflows.
+    \item \textbf{Local and pluggable inference backends.} Refactor the planner behind a provider-neutral interface so the same policy pipeline can run with hosted APIs, self-hosted serving stacks, or local task-specific models. This would make it possible to study whether offline intent parsing meaningfully improves privacy and resilience without degrading adversarial robustness.
+    \item \textbf{Production wallet and control-plane integration.} Replace the current in-memory handoff layer and shared-secret route protection with a production wallet bridge, persistent state, stronger authentication, auditable operator workflows, and managed secret storage with rotation.
+    \item \textbf{Non-custodial recovery mechanisms.} Explore smart-account, multisig, or social-recovery designs that improve recoverability after wallet loss without reverting to server-side key custody.
     \item \textbf{Formal and machine-checkable invariants.} Build on the current specification-driven traceability by modeling core L2 properties in a formal specification language such as TLA+.
     \item \textbf{Safe configuration governance.} Study how token and router allowlists should be updated safely, including review workflows, timelocks, parity checks, and monitoring of configuration drift between L2 and L3.
     \item \textbf{Broader deployment scope.} Evaluate the architecture on a wider token universe, richer benign workloads, and additional supported execution environments while preserving the same non-custodial boundary.
